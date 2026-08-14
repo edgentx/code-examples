@@ -1,0 +1,24 @@
+# A single OpenFGA server for running the checks locally.
+#
+# Storage defaults to memory, so the store this example creates disappears when the
+# container stops. That is deliberate for a demonstration: every test run writes its
+# own store, its own model, and its own tuples, and never inherits state from a
+# previous run. A deployment would set OPENFGA_DATASTORE_ENGINE to postgres or mysql
+# and point it at a managed database.
+services:
+  openfga:
+    image: openfga/openfga:v1.8.4
+    command: run
+    ports:
+      # HTTP API. This is the port OPENFGA_API_URL points at.
+      - "8080:8080"
+      # gRPC API, for clients that prefer it.
+      - "8081:8081"
+      # Playground: a browser view of the model and the tuple set, which is the
+      # fastest way to show someone that access is data they can look at.
+      - "3000:3000"
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/grpc_health_probe", "-addr=0.0.0.0:8081"]
+      interval: 5s
+      timeout: 3s
+      retries: 12

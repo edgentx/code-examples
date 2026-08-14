@@ -1,0 +1,140 @@
+# The same scenario and the same assertions as authorization_test.go, expressed as
+# an OpenFGA store test. `fga model test --tests store.fga.yaml` evaluates it in
+# process, with no server and no Go toolchain, which is the form a policy reviewer
+# or a records officer can read and edit without touching application code.
+name: public records sharing
+
+model_file: ./model.fga
+
+tuples:
+  # Staff roster for one department.
+  - user: user:dana
+    relation: member
+    object: organization:parks-department
+  - user: user:evan
+    relation: member
+    object: organization:parks-department
+
+  # The public reading room, and the nested permits folder inside it.
+  - user: organization:parks-department
+    relation: organization
+    object: folder:reading-room
+  - user: user:rosa
+    relation: owner
+    object: folder:reading-room
+  - user: folder:reading-room
+    relation: parent
+    object: folder:permits
+
+  # Where each document is filed.
+  - user: folder:reading-room
+    relation: parent
+    object: document:bridge-inspection-2025
+  - user: folder:permits
+    relation: parent
+    object: document:permit-application-88
+  - user: folder:permits
+    relation: parent
+    object: document:sealed-affidavit
+
+  # Direct grants on one document.
+  - user: user:sam
+    relation: owner
+    object: document:permit-application-88
+  - user: user:tomas
+    relation: editor
+    object: document:permit-application-88
+
+  # A revocation, written down like every other fact.
+  - user: user:dana
+    relation: blocked
+    object: document:sealed-affidavit
+
+tests:
+  - name: direct grants
+    check:
+      # The author reads and shares, but retention keeps deletion with the custodian.
+      - user: user:sam
+        object: document:permit-application-88
+        assertions:
+          can_view: true
+          can_edit: true
+          can_share: true
+          can_delete: false
+      # A reviser edits, and nothing more.
+      - user: user:tomas
+        object: document:permit-application-88
+        assertions:
+          can_view: true
+          can_edit: true
+          can_share: false
+          can_delete: false
+
+  - name: inheritance through the folder tree
+    check:
+      # Custody of the reading room reaches documents one and two folders down.
+      - user: user:rosa
+        object: document:bridge-inspection-2025
+        assertions:
+          can_view: true
+          can_edit: true
+          can_delete: true
+      - user: user:rosa
+        object: document:permit-application-88
+        assertions:
+          can_view: true
+          can_edit: true
+          can_delete: true
+
+  - name: group membership
+    check:
+      # Nothing relates Dana or Evan to a document; the organization relation on the
+      # folder does all the work.
+      - user: user:dana
+        object: document:bridge-inspection-2025
+        assertions:
+          can_view: true
+          can_edit: false
+      - user: user:evan
+        object: document:permit-application-88
+        assertions:
+          can_view: true
+          can_edit: false
+
+  - name: no relationship, no access
+    check:
+      - user: user:quinn
+        object: document:bridge-inspection-2025
+        assertions:
+          can_view: false
+          can_edit: false
+          can_share: false
+          can_delete: false
+
+  - name: exclusion removes an inherited read
+    check:
+      # The inherited relation still exists; can_view subtracts the blocked tuple.
+      - user: user:dana
+        object: document:sealed-affidavit
+        assertions:
+          viewer: true
+          can_view: false
+      # Same path, no block.
+      - user: user:evan
+        object: document:sealed-affidavit
+        assertions:
+          viewer: true
+          can_view: true
+
+  - name: what can this person see
+    list_objects:
+      - user: user:dana
+        type: document
+        assertions:
+          can_view:
+            - document:bridge-inspection-2025
+            - document:permit-application-88
+      - user: user:quinn
+        type: document
+        assertions:
+          can_view: []

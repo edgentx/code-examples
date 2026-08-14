@@ -1,0 +1,58 @@
+model
+  schema 1.1
+
+# Everything below is a relationship, not a role. Access is decided by asking the
+# graph "is there a path from this user to this object with this relation", so the
+# answer to "who can see this document" is always derivable and always explainable.
+
+type user
+
+type organization
+  relations
+    # Group membership. One tuple per person, maintained wherever staff records are
+    # maintained; nothing else in the model has to know how that list is populated.
+    define member: [user]
+
+type folder
+  relations
+    # The organization whose members get a baseline read on this folder.
+    define organization: [organization]
+    # Folders nest, which is what makes inheritance meaningful below.
+    define parent: [folder]
+    # The records custodian. Ownership is the only relation that carries deletion,
+    # and it flows down the filing tree: custody of a folder is custody of every
+    # folder inside it.
+    define owner: [user] or owner from parent
+
+    # Union plus inheritance: an editor is granted directly, is the owner, or is an
+    # editor of an enclosing folder.
+    define editor: [user] or owner or editor from parent
+    # `member from organization` is the userset rewrite: instead of naming people,
+    # this line says "whoever is a member of the organization related to this
+    # folder". Adding a person to the organization grants them folder reads with no
+    # tuple written against the folder at all.
+    define viewer: [user] or editor or member from organization or viewer from parent
+
+type document
+  relations
+    define parent: [folder]
+    define owner: [user]
+
+    # Direct grant, or inherited from the folder the document sits in.
+    define editor: [user] or editor from parent
+    define viewer: [user] or viewer from parent
+
+    # Deny by relationship. A blocked tuple is the only way to take access away from
+    # someone who would otherwise inherit it, and it is written down like every other
+    # fact, so a revocation is as auditable as a grant.
+    define blocked: [user]
+
+    # The four relations an application actually asks about. Application code calls
+    # check(user, can_view, document) -- it never re-derives the union itself.
+    define can_view: (viewer or editor or owner) but not blocked
+    define can_edit: (editor or owner) but not blocked
+    # Changing who else can see a record is an ownership action, not an editing one.
+    define can_share: (owner or owner from parent) but not blocked
+    # Retention rule: the person who wrote the document cannot destroy it. Only the
+    # custodian of the folder it is filed in can.
+    define can_delete: (owner from parent) but not blocked
