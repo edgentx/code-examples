@@ -1,0 +1,9 @@
+node_modules/
+test-results/
+playwright-report/
+blob-report/
+
+# CI runs `npm install`, not `npm ci`, so no lockfile is committed. Versions are pinned exactly
+# in package.json, which is what makes the run reproducible without a 300 KB lockfile in a
+# repository whose point is to be read.
+package-lock.json

@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Request a copy of a public record | Office of Records</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <!-- Skip link: first thing in the tab order, visible only once focused. -->
+    <a class="skip-link" href="#main-content">Skip to main content</a>
+
+    <header class="site-header">
+      <p class="site-name">Office of Records</p>
+      <nav aria-label="Primary">
+        <ul class="nav-list">
+          <li><a href="#main-content">Request a record</a></li>
+          <li><a href="#deadlines">Response times</a></li>
+          <li><a href="#help">Get help</a></li>
+        </ul>
+      </nav>
+    </header>
+
+    <!-- tabindex="-1" so the skip link can move focus here, not just scroll. -->
+    <main id="main-content" tabindex="-1">
+      <h1>Request a copy of a public record</h1>
+      <p class="lede">
+        Fields marked with an asterisk are required. We use your contact details only to send the
+        records you ask for and to tell you if the request needs more time.
+      </p>
+
+      <!--
+        Error summary. It is empty and hidden until validation fails; the script fills it in,
+        unhides it, and moves focus to it. role="alert" announces the new content to a screen
+        reader; tabindex="-1" makes the container programmatically focusable so the user is put at
+        the top of the problem list rather than left wherever they were.
+      -->
+      <div
+        id="error-summary"
+        class="error-summary"
+        role="alert"
+        tabindex="-1"
+        hidden
+      >
+        <h2>There is a problem with this request</h2>
+        <ul id="error-summary-list"></ul>
+      </div>
+
+      <form id="request-form" novalidate>
+        <h2>Your details</h2>
+
+        <div class="field">
+          <label for="full-name">
+            Full name
+            <span aria-hidden="true" class="required-marker">*</span>
+            <span class="visually-hidden">(required)</span>
+          </label>
+          <p class="hint" id="full-name-hint">
+            Enter your name as it appears on your identification.
+          </p>
+          <p class="field-error" id="full-name-error" hidden></p>
+          <!--
+            The required-field pattern: the control points at both its hint and its (initially
+            empty) error message with aria-describedby, so the same element that carries the
+            visible red text also carries the announced text. No tooltip-only guidance.
+          -->
+          <input
+            type="text"
+            id="full-name"
+            name="full-name"
+            autocomplete="name"
+            required
+            aria-describedby="full-name-hint full-name-error"
+          />
+        </div>
+
+        <div class="field">
+          <label for="email">
+            Email address
+            <span aria-hidden="true" class="required-marker">*</span>
+            <span class="visually-hidden">(required)</span>
+          </label>
+          <p class="hint" id="email-hint">
+            We send the receipt notice and the records to this address.
+          </p>
+          <p class="field-error" id="email-error" hidden></p>
+          <input
+            type="email"
+            id="email"
+            name="email"
+            autocomplete="email"
+            required
+            aria-describedby="email-hint email-error"
+          />
+        </div>
+
+        <div class="field">
+          <label for="case-number">Existing case number</label>
+          <p class="hint" id="case-number-hint">
+            Optional. Format REC-0000. Leave blank if this is a new request.
+          </p>
+          <input
+            type="text"
+            id="case-number"
+            name="case-number"
+            aria-describedby="case-number-hint"
+          />
+        </div>
+
+        <h2>What you are asking for</h2>
+
+        <div class="field">
+          <label for="records">
+            Describe the records
+            <span aria-hidden="true" class="required-marker">*</span>
+            <span class="visually-hidden">(required)</span>
+          </label>
+          <p class="hint" id="records-hint">
+            Include dates, offices, and any file numbers you know. A narrower description is
+            usually answered faster.
+          </p>
+          <p class="field-error" id="records-error" hidden></p>
+          <textarea
+            id="records"
+            name="records"
+            rows="4"
+            required
+            aria-describedby="records-hint records-error"
+          ></textarea>
+        </div>
+
+        <!--
+          A radio group is a single question with several answers, so it needs a group name.
+          fieldset/legend gives it one without inventing an ARIA pattern.
+        -->
+        <fieldset class="field">
+          <legend>
+            How should we deliver the records?
+            <span aria-hidden="true" class="required-marker">*</span>
+            <span class="visually-hidden">(required)</span>
+          </legend>
+          <p class="field-error" id="delivery-error" hidden></p>
+          <div class="choice">
+            <input
+              type="radio"
+              id="delivery-email"
+              name="delivery"
+              value="email"
+              aria-describedby="delivery-error"
+            />
+            <label for="delivery-email">Email a digital copy</label>
+          </div>
+          <div class="choice">
+            <input
+              type="radio"
+              id="delivery-mail"
+              name="delivery"
+              value="mail"
+              aria-describedby="delivery-error"
+            />
+            <label for="delivery-mail">Mail printed copies</label>
+          </div>
+          <div class="choice">
+            <input
+              type="radio"
+              id="delivery-pickup"
+              name="delivery"
+              value="pickup"
+              aria-describedby="delivery-error"
+            />
+            <label for="delivery-pickup">Collect in person at the records counter</label>
+          </div>
+        </fieldset>
+
+        <div class="choice">
+          <input type="checkbox" id="fee-waiver" name="fee-waiver" value="yes" />
+          <label for="fee-waiver">I am asking for the copying fee to be waived</label>
+        </div>
+
+        <button type="submit" id="submit-request" class="button">Submit request</button>
+      </form>
+
+      <h2 id="deadlines">Statutory response times</h2>
+      <table>
+        <caption>
+          Working days allowed for each stage, counted from the day the request is received.
+        </caption>
+        <thead>
+          <tr>
+            <!-- scope on every header cell: the association is stated, not inferred. -->
+            <th scope="col">Stage</th>
+            <th scope="col">Working days</th>
+            <th scope="col">Notice sent</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th scope="row">Receipt acknowledged</th>
+            <td>3</td>
+            <td>Yes</td>
+          </tr>
+          <tr>
+            <th scope="row">Records released or denied</th>
+            <td>10</td>
+            <td>Yes</td>
+          </tr>
+          <tr>
+            <th scope="row">Extension for a voluminous request</th>
+            <td>10 additional</td>
+            <td>Yes</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2 id="help">Get help with this form</h2>
+      <p>
+        Call the records desk on 555-0100, Monday to Friday. If you cannot use this form, a staff
+        member will take the request by phone and read it back to you.
+      </p>
+    </main>
+
+    <footer class="site-footer">
+      <p>
+        This page is a synthetic example. Conformance target: WCAG 2.1 level AA, enforced on every
+        pull request.
+      </p>
+    </footer>
+
+    <script>
+      // Client-side validation exists here only to exercise the error pattern the tests assert
+      // on. A real form validates on the server as well; the accessible behavior is the same.
+      (function () {
+        var form = document.getElementById('request-form');
+        var summary = document.getElementById('error-summary');
+        var summaryList = document.getElementById('error-summary-list');
+
+        // Each rule names the control it guards, the message shown, and the id of the paragraph
+        // already wired into that control's aria-describedby.
+        var rules = [
+          {
+            id: 'full-name',
+            errorId: 'full-name-error',
+            message: 'Enter your full name.',
+            valid: function () {
+              return document.getElementById('full-name').value.trim() !== '';
+            },
+          },
+          {
+            id: 'email',
+            errorId: 'email-error',
+            message: 'Enter an email address in the format name@example.org.',
+            valid: function () {
+              return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(document.getElementById('email').value.trim());
+            },
+          },
+          {
+            id: 'records',
+            errorId: 'records-error',
+            message: 'Describe the records you are asking for.',
+            valid: function () {
+              return document.getElementById('records').value.trim() !== '';
+            },
+          },
+          {
+            id: 'delivery-email',
+            errorId: 'delivery-error',
+            message: 'Choose how the records should be delivered.',
+            valid: function () {
+              return document.querySelector('input[name="delivery"]:checked') !== null;
+            },
+          },
+        ];
+
+        function clearErrors() {
+          summary.hidden = true;
+          summaryList.textContent = '';
+          rules.forEach(function (rule) {
+            var control = document.getElementById(rule.id);
+            var error = document.getElementById(rule.errorId);
+            control.removeAttribute('aria-invalid');
+            error.hidden = true;
+            error.textContent = '';
+          });
+        }
+
+        form.addEventListener('submit', function (event) {
+          event.preventDefault();
+          clearErrors();
+
+          var failures = rules.filter(function (rule) {
+            return !rule.valid();
+          });
+
+          if (failures.length === 0) {
+            summaryList.textContent = '';
+            summary.hidden = true;
+            return;
+          }
+
+          failures.forEach(function (rule) {
+            var control = document.getElementById(rule.id);
+            var error = document.getElementById(rule.errorId);
+
+            control.setAttribute('aria-invalid', 'true');
+            error.textContent = rule.message;
+            error.hidden = false;
+
+            var item = document.createElement('li');
+            var link = document.createElement('a');
+            link.href = '#' + rule.id;
+            link.textContent = rule.message;
+            // Send focus to the control itself rather than relying on the fragment jump, which
+            // moves the viewport but not the keyboard position in some browsers.
+            link.addEventListener('click', function (clickEvent) {
+              clickEvent.preventDefault();
+              control.focus();
+            });
+            item.appendChild(link);
+            summaryList.appendChild(item);
+          });
+
+          summary.hidden = false;
+          // Focus, not just scroll: the keyboard user lands on the problem list.
+          summary.focus();
+        });
+      })();
+    </script>
+  </body>
+</html>
