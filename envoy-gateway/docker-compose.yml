@@ -1,0 +1,83 @@
+# The demonstration stack: one gateway, two upstreams, one network.
+#
+#   ./generate-dev-certs.sh
+#   docker compose up --build
+#
+# Nothing in this file is required by the example -- smoke.sh brings the same
+# three containers up with plain `docker run` -- but it is the shape the stack
+# is meant to be read in.
+
+name: envoy-gateway
+
+services:
+  # The only container with a published port worth caring about. It holds the
+  # certificate, terminates TLS, and is the sole entry point to the estate.
+  gateway:
+    image: envoyproxy/envoy:v1.34-latest
+    working_dir: /workspace
+    # The short flush interval is a demonstration convenience: Envoy buffers the
+    # access log for ten seconds by default, which is right in production and
+    # confusing when a reader runs a curl and then goes looking for the line.
+    command: ["-c", "envoy-gateway.yaml", "--file-flush-interval-msec", "200"]
+    volumes:
+      # Read-only: the gateway needs the configuration and the certificates and
+      # has no reason to be able to change either.
+      - ./:/workspace:ro
+    ports:
+      # Bound to loopback, not to every interface. A development stack that
+      # listens on 0.0.0.0 is a development stack that ends up reachable from
+      # the office network.
+      - "127.0.0.1:18100:8080"
+      - "127.0.0.1:18443:8443"
+    networks: [edge]
+    depends_on:
+      service-a:
+        condition: service_healthy
+      service-b:
+        condition: service_healthy
+
+  # The upstreams publish ports only so a reader can compare a direct call with
+  # the same call through the gateway and see what the edge added and removed.
+  # In a real deployment they would publish nothing.
+  service-a:
+    build:
+      context: .
+      args:
+        SERVICE: service-a
+    ports:
+      - "127.0.0.1:18101:8080"
+    networks: [edge]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/healthz"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+
+  service-b:
+    build:
+      context: .
+      args:
+        SERVICE: service-b
+    environment:
+      # Longer than the one-second timeout on the /api/b/slow route, so the
+      # gateway is what gives up.
+      SLOW_FOR: 5s
+    ports:
+      - "127.0.0.1:18102:8080"
+    networks: [edge]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/healthz"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+
+networks:
+  edge:
+    ipam:
+      config:
+        # The reserved documentation range from RFC 5737. Addresses show up in
+        # the access log and in the x-forwarded-for header the upstreams echo,
+        # and this repository is public, so the demonstration output in the
+        # README carries documentation addresses rather than somebody's real
+        # network numbering.
+        - subnet: 203.0.113.0/24

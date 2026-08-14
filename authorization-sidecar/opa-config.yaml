@@ -1,0 +1,32 @@
+# Open Policy Agent configuration for the ext_authz sidecar.
+#
+# The image is openpolicyagent/opa:<version>-envoy, which is stock OPA plus the
+# plugin that speaks Envoy's external authorization gRPC protocol. The policy in
+# policy/ is loaded from disk; nothing is fetched from a network at startup, so
+# the stack comes up the same way in an air-gapped environment as it does here.
+
+plugins:
+  envoy_ext_authz_grpc:
+    # The port Envoy's opa_authorization cluster dials. Container-internal only:
+    # nothing publishes it.
+    addr: :9191
+
+    # The document the plugin evaluates. It returns the object defined at the
+    # bottom of policy/authz.rego: allowed, the identity headers to stamp, and
+    # on denial an explicit status and body.
+    path: envoy/authz/result
+
+    # Never true outside a policy rollout rehearsal. In dry-run the plugin logs
+    # what it would have decided and allows everything, which is fail-open with
+    # extra steps.
+    dry-run: false
+
+    # gRPC server reflection is a debugging convenience and an information
+    # disclosure. Off.
+    enable-reflection: false
+
+decision_logs:
+  # Every decision to the container log, allow and deny alike. This is the
+  # evidence trail: the reason a request was refused belongs here, not in the
+  # response body handed back to whoever was probing.
+  console: true

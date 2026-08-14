@@ -1,0 +1,57 @@
+# Three containers on one user-defined network: the proxy, the policy decision
+# point, and the application. Compose gives every service a DNS name on that
+# network, which is what envoy.yaml dials -- "opa" and "upstream".
+#
+#   docker compose up -d --build
+#   curl -i http://localhost:18000/health
+#   docker compose down -v
+#
+# Host ports are in the 18000 range so this stack can run beside the other
+# examples in this repository without a collision.
+
+name: authorization-sidecar
+
+services:
+  # The application. Published to the host ONLY so the README can show what it
+  # answers when nothing is guarding it -- which is everything, to anybody. In a
+  # real deployment nothing outside the pod can reach this port.
+  upstream:
+    build: .
+    ports:
+      - "18080:8080"
+
+  # The policy decision point: stock Open Policy Agent plus the plugin that
+  # speaks Envoy's external authorization protocol. The policy directory is
+  # mounted read-only; the container has no way to rewrite its own rules.
+  opa:
+    image: openpolicyagent/opa:1.4.2-envoy
+    command:
+      - run
+      - --server
+      - --disable-telemetry
+      - --addr=0.0.0.0:8181
+      - --config-file=/config/opa-config.yaml
+      - /policy
+    volumes:
+      - ./policy:/policy:ro
+      - ./opa-config.yaml:/config/opa-config.yaml:ro
+    # The REST port, published for inspection (querying a decision by hand). The
+    # gRPC port the proxy actually uses, 9191, is never published.
+    ports:
+      - "18181:8181"
+
+  # The enforcement point. Every request the outside world makes arrives here.
+  envoy:
+    image: envoyproxy/envoy:v1.34-latest
+    command: ["-c", "/etc/envoy/envoy.yaml", "--log-level", "info"]
+    volumes:
+      - ./envoy.yaml:/etc/envoy/envoy.yaml:ro
+    ports:
+      - "18000:8000"
+    # depends_on orders startup, it does not wait for readiness -- and it must
+    # not need to. If Envoy comes up before the policy engine does, requests are
+    # refused until the policy engine answers. Fail-closed covers the startup
+    # race for free.
+    depends_on:
+      - opa
+      - upstream

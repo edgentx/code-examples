@@ -130,6 +130,67 @@ jobs:
             echo '::endgroup::'
           done
 
+  terraform-iac:
+    name: Terraform infrastructure as code
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: '1.9.8'
+          # The wrapper rewrites stdout and exit codes, which breaks
+          # `terraform test`.
+          terraform_wrapper: false
+      - name: Check formatting
+        working-directory: terraform-iac
+        run: terraform fmt -check -recursive
+      - name: Validate and test the module
+        working-directory: terraform-iac/modules/tenant-config
+        run: |
+          set -euo pipefail
+          terraform init -backend=false -input=false
+          terraform validate
+          terraform test
+      - name: Validate and plan the dev environment
+        working-directory: terraform-iac/environments/dev
+        run: |
+          set -euo pipefail
+          terraform init -input=false
+          terraform validate
+          terraform plan -input=false
+
+  authorization-sidecar-smoke:
+    name: Authorization sidecar smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prove the authorization boundary end to end
+        run: |
+          set -euo pipefail
+          directory=authorization-sidecar
+          if [ ! -d "${directory}" ]; then
+            echo 'authorization sidecar example not present yet'
+            exit 0
+          fi
+          cd "${directory}"
+          ./smoke.sh
+
+  envoy-gateway-smoke:
+    name: Envoy gateway smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Bring the gateway stack up and assert the demonstrations
+        run: |
+          set -euo pipefail
+          directory=envoy-gateway
+          if [ ! -d "${directory}" ]; then
+            echo 'gateway example not present yet'
+            exit 0
+          fi
+          cd "${directory}"
+          ./smoke.sh
+
   openfga-authorization:
     name: OpenFGA relationship checks
     runs-on: ubuntu-latest
@@ -160,6 +221,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Generate development certificates
+        run: |
+          set -euo pipefail
+          # Envoy's validate mode loads every file the configuration references,
+          # including TLS material. Certificates are generated, never committed.
+          generators=$(find . -name 'generate-dev-certs.sh' | sort)
+          for generator in ${generators}; do
+            echo "::group::${generator}"
+            (cd "$(dirname "${generator}")" && bash ./generate-dev-certs.sh)
+            echo '::endgroup::'
+          done
       - name: Validate every Envoy bootstrap
         run: |
           set -euo pipefail
@@ -170,7 +242,11 @@ jobs:
           fi
           for config in ${configs}; do
             echo "::group::${config}"
-            docker run --rm -v "${PWD}:/workspace" -w /workspace \
-              envoyproxy/envoy:v1.34-latest --mode validate -c "${config}"
+            # Envoy resolves file references in the configuration against the
+            # process working directory, so validation has to run from the
+            # directory the configuration lives in.
+            directory=$(dirname "${config}")
+            docker run --rm -v "${PWD}:/workspace" -w "/workspace/${directory}" \
+              envoyproxy/envoy:v1.34-latest --mode validate -c "$(basename "${config}")"
             echo '::endgroup::'
           done

@@ -1,0 +1,129 @@
+# Envoy in front of the document service. Every request entering the stack is
+# checked by the ext_authz filter before the router is ever reached, so the
+# upstream cluster is unreachable except through a policy decision.
+#
+# Validate this file without running anything:
+#
+#   docker run --rm -v "$PWD:/workspace" -w /workspace \
+#     envoyproxy/envoy:v1.34-latest --mode validate -c envoy.yaml
+
+admin:
+  # Bound to loopback inside the container. The admin interface exposes
+  # configuration and statistics and is never something to publish.
+  address:
+    socket_address: {address: 127.0.0.1, port_value: 9901}
+
+static_resources:
+  listeners:
+    - name: ingress
+      address:
+        socket_address: {address: 0.0.0.0, port_value: 8000}
+      filter_chains:
+        - filters:
+            - name: envoy.filters.network.http_connection_manager
+              typed_config:
+                "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+                stat_prefix: ingress_http
+                # Normalize the path and reject anything with an escaped slash
+                # before the policy sees it. Otherwise two components could
+                # disagree about what the path is -- the classic way an exact
+                # path rule gets walked around.
+                normalize_path: true
+                merge_slashes: true
+                path_with_escaped_slashes_action: REJECT_REQUEST
+                route_config:
+                  name: local_route
+                  virtual_hosts:
+                    - name: document_service
+                      domains: ["*"]
+                      routes:
+                        # One catch-all route. The routing table is deliberately
+                        # not the authorization boundary: the policy is. If a
+                        # new endpoint is added upstream tomorrow, it arrives
+                        # denied by default rather than exposed by a prefix
+                        # match somebody forgot to tighten.
+                        - match: {prefix: "/"}
+                          route: {cluster: document_service}
+                http_filters:
+                  - name: envoy.filters.http.ext_authz
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthz
+                      transport_api_version: V3
+
+                      # ==========================================================
+                      # THE MOST IMPORTANT LINE IN THIS FILE.
+                      #
+                      # failure_mode_allow: false means that if Open Policy Agent
+                      # is unreachable, times out, crashes, or is mid-restart,
+                      # Envoy fails the request. It does not forward it.
+                      #
+                      # The alternative -- failing open -- converts an
+                      # availability incident in the authorization service into a
+                      # confidentiality incident across every endpoint behind it,
+                      # silently, with a 200 in the access log and nothing in the
+                      # decision log to review afterward. An authorization service
+                      # that is down must break the request, not open the door.
+                      #
+                      # This is what makes the deny in this example real: stop the
+                      # policy container and reads stop, which is exactly the
+                      # behavior smoke.sh asserts.
+                      # ==========================================================
+                      failure_mode_allow: false
+
+                      # Envoy's default status when the check cannot be made is
+                      # 403, which is what smoke.sh asserts after stopping the
+                      # policy container. Some operators set
+                      # status_on_error: {code: ServiceUnavailable} instead, so
+                      # that "the decision point is down" pages a different team
+                      # than "this caller was refused". Either is fail-closed;
+                      # the default is kept here so the demonstration reads
+                      # unambiguously.
+
+                      grpc_service:
+                        envoy_grpc: {cluster_name: opa_authorization}
+                        # Short, because this timeout is on the critical path of
+                        # every request. A slow policy must fail fast and closed
+                        # rather than hold connections open.
+                        timeout: 1s
+
+                      # No request body is sent to the policy. The decision is
+                      # made on method, path, and verified identity, so shipping
+                      # payloads -- which may carry sensitive records -- into a
+                      # second process and its decision logs buys nothing.
+                  - name: envoy.filters.http.router
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+
+  clusters:
+    # The policy decision point. Reached over gRPC on the shared container
+    # network; in a cluster this is a loopback call to a container in the same
+    # pod, which is why "sidecar" is the accurate word for it.
+    - name: opa_authorization
+      type: STRICT_DNS
+      connect_timeout: 1s
+      lb_policy: ROUND_ROBIN
+      typed_extension_protocol_options:
+        envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
+          "@type": type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions
+          explicit_http_config:
+            http2_protocol_options: {}
+      load_assignment:
+        cluster_name: opa_authorization
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address: {address: opa, port_value: 9191}
+
+    # The application. It has no authorization code in it; see service.go.
+    - name: document_service
+      type: STRICT_DNS
+      connect_timeout: 1s
+      lb_policy: ROUND_ROBIN
+      load_assignment:
+        cluster_name: document_service
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address: {address: upstream, port_value: 8080}

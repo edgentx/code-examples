@@ -1,0 +1,387 @@
+# envoy-gateway.yaml
+#
+# The edge of a small service estate, written as configuration a reviewer can
+# read end to end. Everything here is a control an agency asks about during an
+# assessment -- TLS termination, what the edge refuses to pass through, how long
+# a request is allowed to take, what gets retried, and what is written to the
+# log -- stated once, in one file, rather than reimplemented in each service.
+#
+# The two services behind it (cmd/service-a, cmd/service-b) contain no TLS code,
+# no header sanitization, no timeout policy, and no access logging. That is the
+# point: those are edge concerns, and an edge concern implemented per-service is
+# an edge concern that drifts.
+#
+# Validate this file without starting anything:
+#
+#   ./generate-dev-certs.sh
+#   docker run --rm -v "$PWD:/workspace" -w /workspace \
+#     envoyproxy/envoy:v1.34-latest --mode validate -c envoy-gateway.yaml
+#
+# Validation opens every file the configuration references, so the certificates
+# have to exist first.
+
+# The administration interface binds to loopback inside the container and is
+# never published to a host port. It exposes configuration dumps, statistics,
+# and a shutdown endpoint; anything that can reach it owns the gateway.
+admin:
+  address:
+    socket_address:
+      address: 127.0.0.1
+      port_value: 9901
+
+# A ceiling on concurrent downstream connections. Without one, the edge will
+# accept connections until the container runs out of file descriptors and starts
+# failing in ways that look like an application fault. A bounded edge fails
+# predictably, at the edge, with a number an operator chose.
+overload_manager:
+  resource_monitors:
+    - name: envoy.resource_monitors.global_downstream_max_connections
+      typed_config:
+        "@type": type.googleapis.com/envoy.extensions.resource_monitors.downstream_connections.v3.DownstreamConnectionsConfig
+        max_active_downstream_connections: 4096
+
+static_resources:
+  listeners:
+    # -------------------------------------------------------------------------
+    # Plain HTTP: redirect only.
+    #
+    # The cleartext port exists so that a caller who types http:// gets an
+    # answer, not a connection reset. It has no route to any upstream, so there
+    # is no configuration mistake that can quietly start serving the estate in
+    # the clear.
+    # -------------------------------------------------------------------------
+    - name: http_redirect
+      address:
+        socket_address:
+          address: 0.0.0.0
+          port_value: 8080
+      filter_chains:
+        - filters:
+            - name: envoy.filters.network.http_connection_manager
+              typed_config:
+                "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+                stat_prefix: http_redirect
+                codec_type: AUTO
+                use_remote_address: true
+                access_log: &access_log
+                  # ---------------------------------------------------------
+                  # Access logging: JSON, to stdout, with a named field set.
+                  #
+                  # Named fields, not a format string, because these lines are
+                  # evidence. A reviewer asking "how many requests did the edge
+                  # time out last month" needs response_flags to be a field
+                  # with a name, not the ninth token of a line that changes
+                  # shape the next time somebody edits the format.
+                  #
+                  # stdout, not a file, because the container runtime owns log
+                  # collection and rotation. A gateway that writes its own log
+                  # files is a gateway that fills a disk.
+                  # ---------------------------------------------------------
+                  - name: envoy.access_loggers.file
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.access_loggers.file.v3.FileAccessLog
+                      path: /dev/stdout
+                      log_format:
+                        json_format:
+                          start_time: "%START_TIME(%Y-%m-%dT%T.%3fZ)%"
+                          method: "%REQ(:METHOD)%"
+                          # The path as the client sent it. Routes below rewrite
+                          # the path before it reaches an upstream, and the log
+                          # has to record what was asked for, not what was
+                          # forwarded.
+                          path: "%REQ(X-ENVOY-ORIGINAL-PATH?:PATH)%"
+                          authority: "%REQ(:AUTHORITY)%"
+                          protocol: "%PROTOCOL%"
+                          response_code: "%RESPONSE_CODE%"
+                          # Why the response looked the way it did: UT is an
+                          # upstream timeout, UF an upstream connection failure,
+                          # NR no route, URX retries exhausted. This is the
+                          # field that separates "the service returned an
+                          # error" from "the edge gave up".
+                          response_flags: "%RESPONSE_FLAGS%"
+                          duration_ms: "%DURATION%"
+                          upstream_host: "%UPSTREAM_HOST%"
+                          upstream_cluster: "%UPSTREAM_CLUSTER%"
+                          bytes_sent: "%BYTES_SENT%"
+                          user_agent: "%REQ(USER-AGENT)%"
+                          # The correlation key. It is stamped on the request
+                          # forwarded upstream and returned to the caller, so a
+                          # complaint quoting one identifier can be traced
+                          # across the gateway log and every service log.
+                          request_id: "%REQ(X-REQUEST-ID)%"
+                route_config:
+                  name: redirect_to_https
+                  virtual_hosts:
+                    - name: everything
+                      domains: ["*"]
+                      routes:
+                        - match:
+                            prefix: "/"
+                          redirect:
+                            https_redirect: true
+                            # The published HTTPS port on the host. Change this
+                            # alongside the port mapping in docker-compose.yml.
+                            port_redirect: 18443
+                http_filters:
+                  - name: envoy.filters.http.router
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+
+    # -------------------------------------------------------------------------
+    # HTTPS: the actual gateway.
+    # -------------------------------------------------------------------------
+    - name: https_gateway
+      address:
+        socket_address:
+          address: 0.0.0.0
+          port_value: 8443
+      filter_chains:
+        - transport_socket:
+            # ---------------------------------------------------------------
+            # TLS termination.
+            #
+            # TLS ends here and nowhere else. The upstreams speak plain HTTP on
+            # a private network segment, so neither of them carries certificate
+            # handling, cipher configuration, or a renewal path -- there is one
+            # place to inspect and one place to rotate.
+            #
+            # The floor is TLS 1.2. TLS 1.0 and 1.1 are not negotiable down to,
+            # because "the default" is not an answer to an assessor asking what
+            # the minimum version is.
+            # ---------------------------------------------------------------
+            name: envoy.transport_sockets.tls
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
+              common_tls_context:
+                tls_params:
+                  tls_minimum_protocol_version: TLSv1_2
+                  tls_maximum_protocol_version: TLSv1_3
+                tls_certificates:
+                  # Generated by ./generate-dev-certs.sh, relative to the
+                  # working directory Envoy is started in. Never committed.
+                  - certificate_chain:
+                      filename: certs/server.crt
+                    private_key:
+                      filename: certs/server.key
+          filters:
+            - name: envoy.filters.network.http_connection_manager
+              typed_config:
+                "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+                stat_prefix: https_gateway
+                codec_type: AUTO
+
+                # The gateway is the first hop from the public internet, so it
+                # is the authority on where a request came from: it appends the
+                # real peer to x-forwarded-for and sets x-forwarded-proto
+                # itself rather than believing what arrived.
+                use_remote_address: true
+
+                # Never carry a client-supplied x-request-id through. A caller
+                # who can choose the correlation identifier can collide with
+                # someone else's, or reuse one to make an audit trail read the
+                # way they would like it to read.
+                preserve_external_request_id: false
+                generate_request_id: true
+
+                # Return the identifier to the caller, so the identifier in a
+                # support ticket is the identifier in the log.
+                always_set_request_id_in_response: true
+
+                # Ceilings that apply to every route. A slow-header or
+                # slow-body client is a resource exhaustion problem, and it is
+                # cheaper to bound it here than in every service.
+                request_timeout: 15s
+                stream_idle_timeout: 30s
+                common_http_protocol_options:
+                  idle_timeout: 60s
+
+                access_log: *access_log
+
+                route_config:
+                  name: edge_routes
+
+                  # -----------------------------------------------------------
+                  # Sanitization: what the edge refuses to pass through.
+                  #
+                  # These are the headers a downstream service would reasonably
+                  # treat as identity. Removing them here means a client cannot
+                  # assert who it is simply by naming itself in a header --
+                  # whatever authentication runs at the edge is the only thing
+                  # that gets to populate them.
+                  #
+                  # The rule this encodes: anything the edge does not strip,
+                  # the application will eventually trust. Not on the day it is
+                  # written, but three years later, in a handler nobody
+                  # remembers, by someone who assumed the header could only
+                  # have come from the gateway.
+                  #
+                  # Removal happens before the routes below add anything, so an
+                  # inbound value can never survive by being re-added.
+                  # -----------------------------------------------------------
+                  request_headers_to_remove:
+                    - x-user-id
+                    - x-user-roles
+                    - x-user-email
+                    - x-tenant-id
+                    # The mutual-TLS peer certificate header. Envoy populates
+                    # this itself where client certificates are in use; an
+                    # inbound copy is always a forgery attempt.
+                    - x-forwarded-client-cert
+                    # Internal routing overrides. A client that can set these
+                    # can pick its own upstream or its own timeout.
+                    - x-envoy-original-path
+                    - x-envoy-upstream-alt-stat-name
+
+                  # What the edge stamps on. x-request-id is generated by the
+                  # connection manager above; this marks which edge handled the
+                  # request, which matters the moment there is more than one.
+                  request_headers_to_add:
+                    - header:
+                        key: x-edge-gateway
+                        value: envoy-edge
+                      # Overwrite, never append: an appended value would leave
+                      # the client's copy in the header alongside ours.
+                      append_action: OVERWRITE_IF_EXISTS_OR_ADD
+
+                  virtual_hosts:
+                    - name: gateway
+                      domains: ["*"]
+                      routes:
+                        # ---------------------------------------------------
+                        # Timeout demonstration.
+                        #
+                        # More specific than /api/b, so it is listed first --
+                        # routes are evaluated in order.
+                        #
+                        # service-b sleeps for five seconds on /slow. The route
+                        # is allowed one second in total and 300ms per attempt,
+                        # so the gateway gives up and answers 504 with a UT
+                        # response flag. The caller's latency is bounded by
+                        # this file, not by the slowest thing behind it.
+                        # ---------------------------------------------------
+                        - match:
+                            path_separated_prefix: "/api/b/slow"
+                          route:
+                            cluster: service_b
+                            regex_rewrite:
+                              pattern:
+                                regex: '^/api/b/slow/?'
+                              substitution: "/slow"
+                            timeout: 1s
+                            retry_policy:
+                              retry_on: "5xx,reset,connect-failure"
+                              num_retries: 2
+                              # A retry policy without a per-try timeout is a
+                              # policy that never retries: the first attempt is
+                              # allowed the whole route budget, so there is no
+                              # budget left to retry with. Set both, and set
+                              # them so that (num_retries + 1) * per_try_timeout
+                              # fits inside timeout -- otherwise the retries are
+                              # decoration and the overall timeout is doing all
+                              # the work.
+                              per_try_timeout: 0.3s
+                              retry_back_off:
+                                base_interval: 0.025s
+                                max_interval: 0.25s
+
+                        - match:
+                            path_separated_prefix: "/api/b"
+                          route:
+                            cluster: service_b
+                            regex_rewrite:
+                              pattern:
+                                regex: '^/api/b/?'
+                              substitution: "/"
+                            timeout: 5s
+                            retry_policy:
+                              retry_on: "5xx,reset,connect-failure"
+                              num_retries: 2
+                              per_try_timeout: 1.5s
+                              retry_back_off:
+                                base_interval: 0.025s
+                                max_interval: 0.25s
+
+                        # ---------------------------------------------------
+                        # Path-based routing.
+                        #
+                        # The public path space is the gateway's to define.
+                        # /api/a is rewritten away before the request is
+                        # forwarded, so service-a never learns the URL its
+                        # callers use and the estate can be re-carved without
+                        # touching it.
+                        #
+                        # path_separated_prefix, not prefix: it matches /api/a
+                        # and /api/a/anything but not /api/attachments. A plain
+                        # prefix match happily routes a path that merely starts
+                        # with the same letters, which is how a new endpoint
+                        # ends up silently answered by the wrong service.
+                        #
+                        # regex_rewrite, not prefix_rewrite: replacing the
+                        # matched "/api/a" with "/" leaves the remainder's own
+                        # leading slash in place and forwards "//records/42".
+                        # The regex swallows the separator, so what arrives
+                        # upstream is "/records/42".
+                        # ---------------------------------------------------
+                        - match:
+                            path_separated_prefix: "/api/a"
+                          route:
+                            cluster: service_a
+                            regex_rewrite:
+                              pattern:
+                                regex: '^/api/a/?'
+                              substitution: "/"
+                            timeout: 5s
+                            retry_policy:
+                              # Only idempotent-safe conditions. connect-failure
+                              # and reset mean the request was never processed;
+                              # 5xx is included here because these upstreams are
+                              # read-only. An estate with writes behind it
+                              # should narrow this to retriable-4xx and
+                              # connect-failure, or the gateway will cheerfully
+                              # submit the same form twice.
+                              retry_on: "5xx,reset,connect-failure"
+                              num_retries: 2
+                              per_try_timeout: 1.5s
+                              retry_back_off:
+                                base_interval: 0.025s
+                                max_interval: 0.25s
+
+                http_filters:
+                  - name: envoy.filters.http.router
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+
+  clusters:
+    - name: service_a
+      # STRICT_DNS so the compose service name is re-resolved on a schedule and
+      # a replaced container is picked up without restarting the gateway.
+      type: STRICT_DNS
+      dns_lookup_family: V4_ONLY
+      lb_policy: ROUND_ROBIN
+      # Short, because a connect that has not completed in a quarter second on
+      # a local network segment is not going to complete.
+      connect_timeout: 0.25s
+      load_assignment:
+        cluster_name: service_a
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: service-a
+                      port_value: 8080
+
+    - name: service_b
+      type: STRICT_DNS
+      dns_lookup_family: V4_ONLY
+      lb_policy: ROUND_ROBIN
+      connect_timeout: 0.25s
+      load_assignment:
+        cluster_name: service_b
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: service-b
+                      port_value: 8080
