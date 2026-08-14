@@ -191,6 +191,38 @@ jobs:
           cd "${directory}"
           ./smoke.sh
 
+  otel-observability-smoke:
+    name: Observability smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prove one request produces one trace across both services
+        run: |
+          set -euo pipefail
+          directory=otel-observability
+          if [ ! -d "${directory}" ]; then
+            echo 'observability example not present yet'
+            exit 0
+          fi
+          cd "${directory}"
+          ./smoke.sh
+
+  dapr-pubsub-smoke:
+    name: Dapr pub/sub smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Publish, retry, and park a poison message
+        run: |
+          set -euo pipefail
+          directory=dapr-pubsub
+          if [ ! -d "${directory}" ]; then
+            echo 'pub/sub example not present yet'
+            exit 0
+          fi
+          cd "${directory}"
+          ./smoke.sh
+
   openfga-authorization:
     name: OpenFGA relationship checks
     runs-on: ubuntu-latest

@@ -235,6 +235,8 @@ response.
 
 ## Notes
 
+The `docker compose` demonstration in this README is verified by continuous integration, which runs it on an isolated runner. Run it locally only on a machine you are willing to have create and tear down container networks.
+
 All data here is synthetic: two services that echo their input, and no records behind them. The
 TLS material is generated on demand by `generate-dev-certs.sh`, expires in 90 days, and is never
 committed — `certs/.gitignore` excludes the directory, and the repository's publication gate fails

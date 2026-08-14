@@ -177,6 +177,8 @@ everything down with `docker compose down -v`.
 
 ## Notes
 
+The `docker compose` demonstration in this README is verified by continuous integration, which runs it on an isolated runner. Run it locally only on a machine you are willing to have create and tear down container networks.
+
 All data is synthetic: the documents, the case numbers, the subjects, and the bearer tokens are
 invented for this example. `policy/authz.rego` resolves a token against a static demo directory so
 the stack runs with no identity provider attached; in a real deployment that block becomes a
