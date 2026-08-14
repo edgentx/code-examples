@@ -1,0 +1,99 @@
+# The demo stack: a broker, two services, and a sidecar each. Every service
+# talks to its own sidecar over localhost-equivalent HTTP and never to the
+# broker directly, which is why swapping Redis for something else is a change to
+# components/ and not to any Go file.
+#
+# Host ports are offset so this stack can run alongside the other examples.
+name: dapr-pubsub
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "16379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+
+  publisher:
+    build:
+      context: .
+      args:
+        SERVICE: publisher
+    environment:
+      LISTEN_ADDR: ":8080"
+      DAPR_HTTP_ENDPOINT: "http://publisher-dapr:3500"
+      PUBSUB_COMPONENT: "intake-pubsub"
+      INTAKE_TOPIC: "intake-notices"
+    ports:
+      - "18300:8080"
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  publisher-dapr:
+    image: daprio/daprd:1.15.5
+    # REDIS_PASSWORD is what components/*.yaml resolves `{env:REDIS_PASSWORD}`
+    # against. Empty here because the demo Redis has no password; in a real
+    # deployment this comes from the platform's secret injection.
+    environment:
+      REDIS_PASSWORD: ""
+    command:
+      - "/daprd"
+      - "--app-id=intake-publisher"
+      - "--app-port=8080"
+      # The sidecar reaches the app by compose service name rather than sharing
+      # its network namespace, which keeps each container's ports its own.
+      - "--app-channel-address=publisher"
+      - "--app-protocol=http"
+      - "--dapr-http-port=3500"
+      - "--dapr-listen-addresses=0.0.0.0"
+      - "--resources-path=/components"
+      - "--log-level=info"
+    volumes:
+      - ./components:/components:ro
+    ports:
+      - "13500:3500"
+    depends_on:
+      - publisher
+
+  subscriber:
+    build:
+      context: .
+      args:
+        SERVICE: subscriber
+    environment:
+      LISTEN_ADDR: ":8080"
+      DAPR_HTTP_ENDPOINT: "http://subscriber-dapr:3500"
+      PUBSUB_COMPONENT: "intake-pubsub"
+      STATE_COMPONENT: "intake-statestore"
+      DEAD_LETTER_TOPIC: "intake-notices-parked"
+      MAX_DELIVERY_ATTEMPTS: "3"
+    ports:
+      - "18301:8080"
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  subscriber-dapr:
+    image: daprio/daprd:1.15.5
+    environment:
+      REDIS_PASSWORD: ""
+    command:
+      - "/daprd"
+      - "--app-id=intake-subscriber"
+      - "--app-port=8080"
+      - "--app-channel-address=subscriber"
+      - "--app-protocol=http"
+      - "--dapr-http-port=3500"
+      - "--dapr-listen-addresses=0.0.0.0"
+      - "--resources-path=/components"
+      - "--log-level=info"
+    volumes:
+      - ./components:/components:ro
+    ports:
+      - "13501:3500"
+    depends_on:
+      - subscriber

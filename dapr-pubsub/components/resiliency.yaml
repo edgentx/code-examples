@@ -1,0 +1,26 @@
+# Bounds the sidecar's own redelivery. Without a policy here the sidecar retries
+# inbound delivery indefinitely and `deadLetterTopic` never engages, because the
+# attempts never run out.
+#
+# maxRetries is deliberately looser than the subscriber's MAX_DELIVERY_ATTEMPTS
+# (3). The application budget is the one that should normally fire, because the
+# application knows why processing failed and can say so in the parked record.
+# This policy only takes over when the subscriber cannot answer at all.
+apiVersion: dapr.io/v1alpha1
+kind: Resiliency
+metadata:
+  name: intake-resiliency
+scopes:
+  - intake-subscriber
+spec:
+  policies:
+    retries:
+      inboundDelivery:
+        policy: constant
+        duration: 2s
+        maxRetries: 8
+  targets:
+    components:
+      intake-pubsub:
+        inbound:
+          retry: inboundDelivery

@@ -1,0 +1,25 @@
+# The subscription, declared rather than registered in code. The routing table
+# is a file an operator can read and diff: which topic, which route, and where
+# messages go when they cannot be delivered.
+#
+# `deadLetterTopic` is the sidecar's own parking path. It engages when the retry
+# policy in resiliency.yaml runs out of attempts -- for example when the
+# subscriber returns 5xx or is unreachable, and never gets to run its own
+# budget. The application budget in the subscriber is the inner bound; this is
+# the outer one, and both land on the same topic and the same handler.
+#
+# It also engages on DROP. A message the consumer explicitly dropped is
+# forwarded here rather than discarded (verified on daprd 1.15.5), which is why
+# nothing this stack refuses can leave without a record.
+apiVersion: dapr.io/v2alpha1
+kind: Subscription
+metadata:
+  name: intake-notices
+spec:
+  pubsubname: intake-pubsub
+  topic: intake-notices
+  deadLetterTopic: intake-notices-parked
+  routes:
+    default: /events/intake
+scopes:
+  - intake-subscriber

@@ -1,0 +1,31 @@
+# Pub/sub broker for the intake topic. Redis Streams, because it is the smallest
+# thing that supports consumer groups and redelivery; the application code above
+# it does not know or care which broker this is.
+#
+# Synthetic local configuration only. `redis` is the compose service name and
+# there is no password in this file: `{env:REDIS_PASSWORD}` is resolved by the
+# sidecar from its own environment at startup. In a real deployment that line
+# becomes a `secretKeyRef` into a secret store -- same field, different source,
+# and in neither case is the value in version control.
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: intake-pubsub
+spec:
+  type: pubsub.redis
+  version: v1
+  metadata:
+    - name: redisHost
+      value: redis:6379
+    - name: redisPassword
+      value: "{env:REDIS_PASSWORD}"
+    - name: enableTLS
+      value: "false"
+    # The broker's own safety net, underneath the application's delivery budget:
+    # a message the consumer never answered for -- a pod that died inside the
+    # handler -- becomes visible again after processingTimeout and is offered to
+    # another consumer every redeliverInterval.
+    - name: processingTimeout
+      value: "15s"
+    - name: redeliverInterval
+      value: "5s"

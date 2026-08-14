@@ -1,0 +1,24 @@
+# Key/value store for the subscriber's delivery counters, completion markers,
+# and parked-message records. Same Redis instance as the broker here purely to
+# keep the demo small; they are separate components and can be separate systems.
+#
+# Same secret handling as pubsub.yaml: no password in this file.
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: intake-statestore
+spec:
+  type: state.redis
+  version: v1
+  metadata:
+    - name: redisHost
+      value: redis:6379
+    - name: redisPassword
+      value: "{env:REDIS_PASSWORD}"
+    - name: enableTLS
+      value: "false"
+    # Keys are namespaced by app id, so `attempt::N-1001` written by the
+    # subscriber is stored as `intake-subscriber||attempt::N-1001` and cannot
+    # collide with another service's key of the same name.
+    - name: keyPrefix
+      value: appid
