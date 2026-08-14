@@ -11,8 +11,6 @@ Work authored by Edgent's engineering and product team, demonstrating the house 
 | --- | --- |
 | [vision-screening-data-model-sample](https://github.com/edgentx/vision-screening-data-model-sample) | Statewide K-12 screening data model: entity-relationship documentation and SQL schema |
 | [pingmapper-vforce-example](https://github.com/edgentx/pingmapper-vforce-example) | Scientific sonar-processing pipeline orchestrated through VForce Flow with results landing in the governed lakehouse |
-| [vforce-lakehouse-demo](https://github.com/edgentx/vforce-lakehouse-demo) | The lakehouse platform demonstration |
-| [vforce-flow-demo](https://github.com/edgentx/vforce-flow-demo) | The flow platform demonstration |
 
 Live demonstrations: [acme.vforce360.ai](https://acme.vforce360.ai) (documents, flows) and
 [acme.lms.vforce360.ai](https://acme.lms.vforce360.ai) (Edgent Learn).
