@@ -1,0 +1,7 @@
+# Pipeline output. Every layer is rebuilt from the committed source CSV, so a
+# run leaves nothing to commit.
+output/
+
+__pycache__/
+*.pyc
+.pytest_cache/
