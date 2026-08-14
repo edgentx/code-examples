@@ -1,0 +1,176 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  secrets-scan:
+    name: No committed secrets or internal endpoints
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Scan tracked files
+        run: scripts/check-no-committed-secrets.sh
+
+  go-examples:
+    name: Go examples
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+      - name: Format, vet, and test every Go module
+        run: |
+          set -euo pipefail
+          modules=$(find . -name go.mod -not -path './node_modules/*' | sort)
+          if [ -z "${modules}" ]; then
+            echo 'no Go modules yet'
+            exit 0
+          fi
+          for module in ${modules}; do
+            directory=$(dirname "${module}")
+            echo "::group::${directory}"
+            (
+              cd "${directory}"
+              unformatted=$(gofmt -l .)
+              if [ -n "${unformatted}" ]; then
+                echo "gofmt required for: ${unformatted}"
+                exit 1
+              fi
+              go vet ./...
+              go test ./... -count=1
+            )
+            echo '::endgroup::'
+          done
+
+  python-examples:
+    name: Python examples
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Test every Python example
+        run: |
+          set -euo pipefail
+          requirements=$(find . -name requirements.txt -not -path './node_modules/*' | sort)
+          if [ -z "${requirements}" ]; then
+            echo 'no Python examples yet'
+            exit 0
+          fi
+          for file in ${requirements}; do
+            directory=$(dirname "${file}")
+            echo "::group::${directory}"
+            (
+              cd "${directory}"
+              python -m pip install --quiet --upgrade pip
+              python -m pip install --quiet -r requirements.txt
+              python -m pytest -q
+            )
+            echo '::endgroup::'
+          done
+
+  accessibility-gate:
+    name: Accessibility gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run the axe gate against the example page
+        run: |
+          set -euo pipefail
+          directory=accessibility-gated-ci
+          if [ ! -d "${directory}" ]; then
+            echo 'accessibility example not present yet'
+            exit 0
+          fi
+          cd "${directory}"
+          npm install --no-audit --no-fund
+          npx playwright install --with-deps chromium
+          npm test
+
+  rego-policies:
+    name: Rego policy tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Open Policy Agent
+        run: |
+          set -euo pipefail
+          curl -sSfL -o /usr/local/bin/opa \
+            https://openpolicyagent.org/downloads/v1.4.2/opa_linux_amd64_static
+          chmod +x /usr/local/bin/opa
+          opa version
+      - name: Test every policy bundle
+        run: |
+          set -euo pipefail
+          bundles=$(find . -name '*.rego' -not -path './node_modules/*' \
+            -exec dirname {} \; | sort -u)
+          if [ -z "${bundles}" ]; then
+            echo 'no policy bundles yet'
+            exit 0
+          fi
+          for bundle in ${bundles}; do
+            echo "::group::${bundle}"
+            opa test --verbose "${bundle}"
+            echo '::endgroup::'
+          done
+
+  openfga-authorization:
+    name: OpenFGA relationship checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+      - name: Run the checks against a live OpenFGA
+        run: |
+          set -euo pipefail
+          directory=rebac-authorization
+          if [ ! -d "${directory}" ]; then
+            echo 'authorization example not present yet'
+            exit 0
+          fi
+          docker run -d --name openfga -p 8080:8080 openfga/openfga:v1.8.4 run
+          for _ in $(seq 1 60); do
+            if curl -sf http://localhost:8080/healthz >/dev/null; then break; fi
+            sleep 1
+          done
+          curl -sf http://localhost:8080/healthz
+          cd "${directory}"
+          OPENFGA_API_URL=http://localhost:8080 go test ./... -count=1
+
+  envoy-config:
+    name: Envoy configuration validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate every Envoy bootstrap
+        run: |
+          set -euo pipefail
+          configs=$(find . -name 'envoy*.yaml' -not -path './node_modules/*' | sort)
+          if [ -z "${configs}" ]; then
+            echo 'no Envoy configuration yet'
+            exit 0
+          fi
+          for config in ${configs}; do
+            echo "::group::${config}"
+            docker run --rm -v "${PWD}:/workspace" -w /workspace \
+              envoyproxy/envoy:v1.34-latest --mode validate -c "${config}"
+            echo '::endgroup::'
+          done
