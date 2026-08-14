@@ -238,7 +238,7 @@ PASS: one request, one trace (89df29b7008c574fafabacc6f42be6ce), 5 spans across 
 
 ## Notes
 
-The `docker compose` demonstration in this README is verified by continuous integration, which runs it on an isolated runner. Run it locally only on a machine you are willing to have create and tear down container networks.
+**Where the stack demonstration runs.** Continuous integration brings this example's stack up on an isolated runner and asserts the demonstrated behavior on every push, so the claims here stay true. Locally, bringing it up creates and destroys container bridge networks on your machine; do that only where it is safe to.
 
 Every case file, custodian, and identifier here is invented. There is no real records system behind
 this, and the 250ms "off-site shelf" delay is a `time.Sleep`.

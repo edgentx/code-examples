@@ -90,7 +90,7 @@ fga model transform --file model.fga | jq . > model.json
 
 ## Notes
 
-The `docker compose` demonstration in this README is verified by continuous integration, which runs it on an isolated runner. Run it locally only on a machine you are willing to have create and tear down container networks.
+**Where the stack demonstration runs.** Continuous integration brings this example's stack up on an isolated runner and asserts the demonstrated behavior on every push, so the claims here stay true. Locally, bringing it up creates and destroys container bridge networks on your machine; do that only where it is safe to.
 
 The organization, folders, documents, and people are synthetic; the scenario is a county public
 records office invented for this example.

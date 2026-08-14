@@ -156,14 +156,15 @@ Tear down with `docker compose down -v`.
 
 ## Notes
 
-The `docker compose` demonstration in this README is verified by continuous integration, which runs it on an isolated runner. Run it locally only on a machine you are willing to have create and tear down container networks.
+**Where the stack demonstration runs.** Continuous integration brings this example's stack up on an isolated runner and asserts the demonstrated behavior on every push, so the claims here stay true. Locally, bringing it up creates and destroys container bridge networks on your machine; do that only where it is safe to.
 
 **What was verified how.** The Go suite (`go test ./... -count=1`, 44 tests) and the full runtime
 demo above were both run. The runtime demo was executed with plain `docker run` on a user-defined
 network rather than `docker compose up`, because the machine this was built on has no compose
 plugin; `smoke.sh` is that exact sequence, and `docker-compose.yml` mirrors it argument for
 argument (same images, same flags, same environment, same ports). The compose file itself has not
-been executed by the compose plugin. Everything else — the CloudEvents envelope passing through
+been executed by the compose plugin — run `./smoke.sh` to reproduce the demo, or bring the compose
+stack up on a machine that has the plugin. Everything else — the CloudEvents envelope passing through
 the sidecar untouched, both declarative subscriptions loading, the `ETAG` capability on the state
 store, the 409 on a stale etag, the two retries, the park, the dead-letter route, and the DROP
 forwarding — was observed against daprd 1.15.5 and Redis 7.

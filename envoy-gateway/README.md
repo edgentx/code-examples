@@ -235,7 +235,7 @@ response.
 
 ## Notes
 
-The `docker compose` demonstration in this README is verified by continuous integration, which runs it on an isolated runner. Run it locally only on a machine you are willing to have create and tear down container networks.
+**Where the stack demonstration runs.** Continuous integration brings this example's stack up on an isolated runner and asserts the demonstrated behavior on every push, so the claims here stay true. Locally, bringing it up creates and destroys container bridge networks on your machine; do that only where it is safe to.
 
 All data here is synthetic: two services that echo their input, and no records behind them. The
 TLS material is generated on demand by `generate-dev-certs.sh`, expires in 90 days, and is never
