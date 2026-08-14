@@ -1,0 +1,43 @@
+# The demo stack: two services and a collector on one network.
+#
+# Host ports are offset (18200/18201/14317/14318) so this stack can run beside
+# the other examples in this repository without a port collision.
+services:
+  collector:
+    image: otel/opentelemetry-collector-contrib:0.140.0
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes:
+      - ./otel-collector.yaml:/etc/otelcol/config.yaml:ro
+    ports:
+      - "14317:4317" # OTLP gRPC
+      - "14318:4318" # OTLP HTTP
+
+  records:
+    build:
+      context: .
+      args:
+        SERVICE: records
+    environment:
+      RECORDS_ADDR: ":8201"
+      # The SDK reads this variable directly; no exporter endpoint is compiled
+      # into the service.
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://collector:4318
+    ports:
+      - "18201:8201"
+    depends_on:
+      - collector
+
+  frontdesk:
+    build:
+      context: .
+      args:
+        SERVICE: frontdesk
+    environment:
+      FRONTDESK_ADDR: ":8200"
+      RECORDS_BASE_URL: http://records:8201
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://collector:4318
+    ports:
+      - "18200:8200"
+    depends_on:
+      - records
+      - collector

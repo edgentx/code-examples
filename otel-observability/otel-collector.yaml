@@ -1,0 +1,83 @@
+# OpenTelemetry Collector configuration for the demo stack.
+#
+# The collector is the seam that makes the backend choice reversible. Services
+# only ever speak OTLP to this process; swapping the trace backend is an edit to
+# the exporters block and a restart, not a redeploy of every service.
+
+receivers:
+  otlp:
+    protocols:
+      # Both transports are enabled because both are in use: the SDKs here
+      # export OTLP over HTTP, and most sidecar and agent tooling defaults to
+      # gRPC. Accepting one and not the other is a common half-day of debugging.
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  # Batching is not optional at volume. Without it the collector performs one
+  # export per span, which means one network round trip per span: the exporter
+  # queue backs up, the receiver applies backpressure, and the SDKs in the
+  # services start dropping spans. The failure looks like "our traces are
+  # incomplete", not like "the collector is misconfigured", which is why it is
+  # worth stating plainly. Batch first in every pipeline, always.
+  batch:
+    timeout: 5s
+    send_batch_size: 512
+    send_batch_max_size: 1024
+
+  # A hard ceiling so a traffic spike degrades telemetry instead of the node.
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 256
+    spike_limit_mib: 64
+
+exporters:
+  # The demo exporter: prints every span and metric to the collector's stdout,
+  # which is what the README's captured output comes from. Never in production —
+  # it writes the full payload to the log for every signal received.
+  debug:
+    verbosity: detailed
+
+  # Production wiring, left commented out so this file stays honest about what
+  # the demo actually runs.
+  #
+  # Scrape target for metrics. The collector exposes the aggregated series and
+  # a Prometheus-compatible server pulls them:
+  #
+  # prometheus:
+  #   endpoint: 0.0.0.0:8889
+  #   resource_to_telemetry_conversion:
+  #     enabled: false   # keep resource attributes off the label set: cardinality
+  #
+  # Push target for traces. Any OTLP-speaking backend (a hosted APM, or a
+  # self-hosted trace store) terminates here:
+  #
+  # otlp/traces:
+  #   endpoint: trace-backend:4317
+  #   tls:
+  #     insecure: false
+  #   retry_on_failure:
+  #     enabled: true
+  #     initial_interval: 5s
+  #     max_elapsed_time: 300s
+  #   sending_queue:
+  #     enabled: true
+  #     queue_size: 5000
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [debug]
+      # exporters: [debug, otlp/traces]
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [debug]
+      # exporters: [debug, prometheus]
+  telemetry:
+    logs:
+      level: info
