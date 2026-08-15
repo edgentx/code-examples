@@ -1,6 +1,6 @@
 # Hexagonal service (Go)
 
-**Agency ask this answers:** "Prove the business rules are not welded to a vendor database, so we can change the store without rewriting the system."
+**Requirement this addresses:** avoidance of vendor lock-in and data portability; business logic independent of any specific database product.
 
 A construction permit register built as ports and adapters. The domain declares the storage
 interface it needs, in its own vocabulary; two adapters implement it — an in-memory register and

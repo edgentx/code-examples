@@ -1,6 +1,6 @@
 # Envoy edge gateway (Envoy, Go)
 
-**Agency ask this answers:** "Show me the edge terminates TLS, sanitizes what clients send, and enforces timeouts and retries as configuration we can review — not as code buried in each service."
+**Requirement this addresses:** TLS termination, header sanitization, and timeout and retry policy at the edge, as reviewable configuration.
 
 An Envoy proxy in front of two small Go services. The gateway terminates TLS, routes by path,
 strips the identity headers a client might forge, stamps its own correlation identifier, bounds

@@ -1,6 +1,6 @@
 # Event-sourced aggregate (Go)
 
-**Agency ask this answers:** "Show me that every change to a case record is captured, attributable, and reconstructible for audit."
+**Requirement this addresses:** a complete, attributable audit trail of every change to a record, reconstructible for audit and records retention.
 
 A public records request modeled as an event-sourced aggregate. Commands are validated against
 current state; accepted commands produce events; state changes only by applying an event. The

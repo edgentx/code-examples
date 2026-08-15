@@ -1,6 +1,6 @@
 # Medallion pipeline with a quality gate (Python)
 
-**Agency ask this answers:** "Show me that bad data is caught and set aside with a reason, not quietly averaged into the report we brief."
+**Requirement this addresses:** data quality controls with quarantine and reporting of failed records, not silent inclusion.
 
 A bronze / silver / gold pipeline over a batch of taxi trip records. Bronze keeps every line of the
 source file exactly as it arrived. Silver types it, deduplicates it, and applies a named rule set

@@ -1,6 +1,6 @@
 # Dapr pub/sub between two services (Go)
 
-**Agency ask this answers:** "Show me that a message between two systems is either processed or visibly parked for a human — never quietly dropped."
+**Requirement this addresses:** guaranteed message delivery between systems, with failed messages retried and dead-lettered for review rather than dropped.
 
 Two small services and a topic. A records office posts a document intake notice to an HTTP API;
 the API validates it and publishes it; a second service consumes it. The interesting part is not

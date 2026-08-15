@@ -1,6 +1,6 @@
 # Gherkin-driven testing (Go + godog)
 
-**Agency ask this answers:** "Show me that the acceptance criteria in the contract are the tests that run, so 'done' means the same thing to both of us."
+**Requirement this addresses:** acceptance criteria maintained as executable tests, so acceptance is verified by running them.
 
 Permit inspection scheduling, written as acceptance criteria first. The rules a contractor argues
 about — how much notice each priority owes, which days the office is closed, how many inspections a

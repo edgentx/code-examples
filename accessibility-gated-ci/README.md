@@ -1,6 +1,6 @@
 # Accessibility as a merge gate (Playwright + axe-core)
 
-**Agency ask this answers:** "Show me that Section 508 and WCAG 2.1 AA conformance is enforced by the build, not promised in a document."
+**Requirement this addresses:** Section 508 and WCAG 2.1 AA conformance, enforced as a build gate rather than attested in documentation.
 
 A small agency-style form and the test that will not let it regress. Every pull request runs an
 axe-core scan of the page in a real browser, plus keyboard assertions that a scanner cannot make.

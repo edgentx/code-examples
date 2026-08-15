@@ -17,7 +17,7 @@ minimal implementation written for this repository against synthetic or public d
 | Example | Language / stack | Answers |
 | --- | --- | --- |
 | [`event-sourced-aggregate`](event-sourced-aggregate) | Go | Every change to a case record is captured, attributable, and reconstructible for audit. |
-| [`hexagonal-service`](hexagonal-service) | Go, SQLite | The business rules are not welded to a vendor database; the store can change without rewriting the system. |
+| [`hexagonal-service`](hexagonal-service) | Go, SQLite | Business logic independent of the database product: one repository port, two interchangeable adapters, one shared contract test. |
 | [`gherkin-driven-testing`](gherkin-driven-testing) | Go, godog | The acceptance criteria in the contract are the tests that run, so "done" means the same thing to both sides. |
 | [`accessibility-gated-ci`](accessibility-gated-ci) | HTML, Playwright, axe | Section 508 conformance is enforced by the build, not promised in a document. |
 | [`rebac-authorization`](rebac-authorization) | OpenFGA, Go | Who can see a document is decided by an auditable model, not by conditionals scattered through the code. |

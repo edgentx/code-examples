@@ -1,6 +1,6 @@
 # Relationship-based authorization (OpenFGA, Go)
 
-**Agency ask this answers:** "Show me that who can see this document is decided by an auditable model, not by if-statements scattered through the code."
+**Requirement this addresses:** role- and relationship-based access control expressed in an auditable authorization model.
 
 A document-sharing scenario for a county records office, modeled as relationships rather than
 roles. `model.fga` says what a relation means once; the store holds the facts (who is in which

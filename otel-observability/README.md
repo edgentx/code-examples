@@ -1,6 +1,6 @@
 # Distributed tracing with OpenTelemetry (Go)
 
-**Agency ask this answers:** "When a citizen reports that a request was slow or failed, show me that we can find that exact request across every service that touched it."
+**Requirement this addresses:** end-to-end request tracing and monitoring across services for incident response and performance management.
 
 Two small services and a collector. The front desk takes the citizen's request and calls the
 records office over HTTP to fetch the case file. One inbound request produces one trace with spans

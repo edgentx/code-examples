@@ -1,6 +1,6 @@
 # Infrastructure as code (Terraform)
 
-**Agency ask this answers:** "Show me the environment is defined in reviewable code, validated by the build, and reproducible — not assembled by hand in a console."
+**Requirement this addresses:** infrastructure as code, version-controlled, validated in the build, and reproducible across environments.
 
 A map-driven Terraform module that renders one configuration file per tenant, plus a manifest
 indexing the set, and an environment that instantiates it. The resources are deliberately

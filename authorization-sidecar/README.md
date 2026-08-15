@@ -1,6 +1,6 @@
 # Authorization sidecar (Envoy ext_authz, Open Policy Agent, Go)
 
-**Agency ask this answers:** "Show me zero-trust authorization enforced beside the application, not inside it."
+**Requirement this addresses:** zero-trust architecture; authorization enforced at a policy enforcement point outside the application, fail-closed.
 
 Three containers: a small Go document service, an Envoy proxy in front of it, and Open Policy
 Agent beside the proxy. Envoy calls the policy engine over `ext_authz` on every request and
