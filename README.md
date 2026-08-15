@@ -5,7 +5,8 @@
 Runnable, self-contained examples of how Edgent builds software: domain-driven design with event
 sourcing, hexagonal architecture, behavior-driven testing, accessibility as a merge gate,
 zero-trust authorization enforced beside the application, event-driven services, and governed data
-pipelines.
+pipelines. Most are one idea each; [`records-service`](records-service) is the flagship that puts
+them together into one working system.
 
 **This repository holds code only.** Every directory is an independent example with its own README,
 its own tests, and a toolchain named in it. Each README opens with the one-line agency ask the
@@ -16,6 +17,7 @@ minimal implementation written for this repository against synthetic or public d
 
 | Example | Language / stack | Answers |
 | --- | --- | --- |
+| [`records-service`](records-service) | Go, SQLite, React, TypeScript | Full stack: transactions that stay consistent across two services, a complete audit trail, access decided by an auditable model, and an operator interface conforming to Section 508. |
 | [`event-sourced-aggregate`](event-sourced-aggregate) | Go | Every change to a case record is captured, attributable, and reconstructible for audit. |
 | [`hexagonal-service`](hexagonal-service) | Go, SQLite | Business logic independent of the database product: one repository port, two interchangeable adapters, one shared contract test. |
 | [`gherkin-driven-testing`](gherkin-driven-testing) | Go, godog | The acceptance criteria in the contract are the tests that run, so "done" means the same thing to both sides. |

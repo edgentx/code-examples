@@ -49,7 +49,11 @@ jobs:
                 exit 1
               fi
               go vet ./...
-              go test ./... -count=1
+              # The race detector is on for every module. The records service's
+              # locking, idempotency and outbox cases run several writers at
+              # once on purpose, and a race there would otherwise show up as an
+              # occasional wrong answer rather than as a failure.
+              go test ./... -count=1 -race
             )
             echo '::endgroup::'
           done
@@ -102,6 +106,63 @@ jobs:
           npm install --no-audit --no-fund
           npx playwright install --with-deps chromium
           npm test
+
+  records-service-console:
+    name: Records console unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Type-check and test the console
+        working-directory: records-service/web
+        run: |
+          set -euo pipefail
+          npm install --no-audit --no-fund
+          npm run typecheck
+          npm test
+
+  records-service-accessibility:
+    name: Records console accessibility and keyboard gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run axe and the keyboard path against the real service
+        working-directory: records-service/web
+        run: |
+          set -euo pipefail
+          npm install --no-audit --no-fund
+          npx playwright install --with-deps chromium
+          # `npm run e2e` builds the console, starts the Go service serving it
+          # from the same origin as the API, and runs both specs against it.
+          npm run e2e
+
+  records-service-authorization:
+    name: Records service authorization model
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+      - name: Answer the same allow-and-deny matrix with a live OpenFGA
+        run: |
+          set -euo pipefail
+          docker run -d --name openfga-records -p 8080:8080 openfga/openfga:v1.8.4 run
+          for _ in $(seq 1 60); do
+            if curl -sf http://localhost:8080/healthz >/dev/null; then break; fi
+            sleep 1
+          done
+          curl -sf http://localhost:8080/healthz
+          cd records-service
+          OPENFGA_API_URL=http://localhost:8080 go test ./openfgaauthz/... -count=1 -v
 
   rego-policies:
     name: Rego policy tests

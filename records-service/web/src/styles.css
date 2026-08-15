@@ -1,0 +1,495 @@
+/*
+ * The console's whole stylesheet.
+ *
+ * Three things here are conformance rather than taste, and they are commented
+ * where they are rather than listed in a document that ages out:
+ *   - every foreground/background pair is at or above 4.5:1 in both themes;
+ *   - focus is always visible, and never removed without a replacement;
+ *   - motion is opt-out, because the panel slides and some people cannot watch
+ *     that without discomfort.
+ */
+
+:root {
+  color-scheme: light dark;
+
+  --bg: #ffffff;
+  --surface: #f4f6f8;
+  --raised: #ffffff;
+  /* 17:1 on the page background. */
+  --text: #15181c;
+  /* 7.4:1 on white and 7:1 on the surface: readable as body text, not only as a hint. */
+  --muted: #545c66;
+  --border: #c9d0d8;
+  /* White text on this reaches 6.4:1. */
+  --accent: #0a5aa8;
+  --accent-hover: #084887;
+  --on-accent: #ffffff;
+  /* White text on this reaches 7:1. */
+  --danger: #a4231c;
+  --danger-hover: #861c16;
+  --on-danger: #ffffff;
+  --attention-bg: #fff3e0;
+  --attention-text: #6b3b00;
+  --attention-border: #d99a3d;
+  --focus: #0a5aa8;
+  --shadow: 0 12px 32px rgb(21 24 28 / 18%);
+
+  --tone-neutral: #6b7481;
+  --tone-active: #0a5aa8;
+  --tone-waiting: #7a4d00;
+  --tone-attention: #a4231c;
+  --tone-done: #1d6b3f;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1218;
+    --surface: #171b23;
+    --raised: #1b2029;
+    --text: #e9ecf1;
+    /* 8.6:1 on the page background. */
+    --muted: #a5aebb;
+    --border: #2b3240;
+    --accent: #2a6dbb;
+    --accent-hover: #3a80d2;
+    --on-accent: #ffffff;
+    --danger: #8f2b24;
+    --danger-hover: #a5352d;
+    --on-danger: #ffffff;
+    --attention-bg: #3a2a12;
+    --attention-text: #ffd9a8;
+    --attention-border: #b3803a;
+    --focus: #9cc6ff;
+    --shadow: 0 12px 32px rgb(0 0 0 / 55%);
+
+    --tone-neutral: #a5aebb;
+    --tone-active: #7ab5ff;
+    --tone-waiting: #f0b657;
+    --tone-attention: #ff9f95;
+    --tone-done: #6fd39b;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+h1 {
+  font-size: 1.4rem;
+  margin: 0;
+}
+
+h2 {
+  font-size: 1.15rem;
+  margin: 0 0 0.25rem;
+}
+
+h3 {
+  font-size: 1rem;
+  margin: 0 0 0.25rem;
+}
+
+/* Focus is never removed. The outline is three pixels and offset so it is
+   visible against both the row background and the button fill. */
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+/* Content that is announced but not drawn. It stays in the accessibility tree,
+   which is the point: `display: none` would remove it from there too. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  background: var(--accent);
+  color: var(--on-accent);
+  padding: 0.6rem 1rem;
+  z-index: 20;
+}
+
+.skip-link:focus {
+  left: 0;
+}
+
+.masthead {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.masthead__office {
+  margin: 0.15rem 0 0;
+  color: var(--muted);
+}
+
+.masthead__controls {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.75rem;
+}
+
+main {
+  padding: 1.5rem;
+  max-width: 62rem;
+}
+
+.section-note {
+  color: var(--muted);
+  margin: 0 0 1rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-bottom: 0.75rem;
+}
+
+.field--inline {
+  margin-bottom: 0;
+}
+
+label {
+  font-weight: 600;
+}
+
+input,
+select {
+  font: inherit;
+  color: var(--text);
+  background: var(--raised);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.45rem 0.6rem;
+  min-height: 2.5rem;
+}
+
+.hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.field-error {
+  margin: 0;
+  color: var(--danger);
+  font-weight: 600;
+}
+
+@media (prefers-color-scheme: dark) {
+  .field-error {
+    /* The button fill is too dark to read as text on the page background. */
+    color: var(--tone-attention);
+  }
+}
+
+/* --- The request table --------------------------------------------------- */
+
+.requests {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.requests th,
+.requests td {
+  text-align: left;
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.requests thead th {
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.requests tbody th {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 600;
+}
+
+.requests__row--open {
+  background: var(--surface);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  white-space: nowrap;
+}
+
+/* The dot is decoration. The label beside it is the state, so nothing here
+   depends on telling one color from another. */
+.badge__dot {
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  background: var(--tone-neutral);
+}
+
+.badge--active .badge__dot { background: var(--tone-active); }
+.badge--waiting .badge__dot { background: var(--tone-waiting); }
+.badge--attention .badge__dot { background: var(--tone-attention); }
+.badge--done .badge__dot { background: var(--tone-done); }
+
+/* --- Icon buttons -------------------------------------------------------- */
+
+.icon-button {
+  position: relative;
+  display: inline-flex;
+}
+
+.icon-button__control {
+  font: inherit;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  /* 44 pixels square is the smallest target that is comfortable to hit. */
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  justify-content: center;
+  padding: 0 0.7rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--raised);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.icon-button__control--primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
+.icon-button__control--primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.icon-button__control--danger {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: var(--on-danger);
+}
+
+.icon-button__control--danger:hover:not(:disabled) {
+  background: var(--danger-hover);
+}
+
+.icon-button__control:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.icon-button__glyph {
+  font-size: 1.05rem;
+  line-height: 1;
+}
+
+/* The tooltip appears on hover and on keyboard focus. Hover alone would leave
+   every keyboard user with an unlabeled glyph. */
+.icon-button__tooltip {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  background: var(--text);
+  color: var(--bg);
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease-in-out;
+  z-index: 10;
+}
+
+.icon-button:hover .icon-button__tooltip,
+.icon-button__control:focus-visible + .icon-button__tooltip {
+  opacity: 1;
+}
+
+/* --- Skeletons ----------------------------------------------------------- */
+
+.skeleton {
+  display: block;
+  height: 0.85rem;
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--surface) 25%, var(--border) 50%, var(--surface) 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+}
+
+.skeleton-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+@keyframes skeleton-shimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+
+/* --- The slide-out panel ------------------------------------------------- */
+
+.panel-scrim {
+  position: fixed;
+  inset: 0;
+  background: rgb(21 24 28 / 45%);
+  z-index: 5;
+}
+
+.panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(30rem, 100vw);
+  background: var(--bg);
+  border-left: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  animation: panel-slide-in 180ms ease-out;
+}
+
+@keyframes panel-slide-in {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+.panel__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.25rem 1.25rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.panel__title {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.panel__subtitle {
+  margin: 0.25rem 0 0;
+  color: var(--muted);
+}
+
+.panel__body {
+  padding: 1.25rem;
+  overflow-y: auto;
+}
+
+.detail {
+  display: grid;
+  grid-template-columns: minmax(9rem, auto) 1fr;
+  gap: 0.35rem 1rem;
+  margin: 0 0 1.5rem;
+}
+
+.detail dt {
+  color: var(--muted);
+}
+
+.detail dd {
+  margin: 0;
+}
+
+.decisions {
+  border-top: 1px solid var(--border);
+  padding-top: 1rem;
+}
+
+.action {
+  padding: 0.75rem 0;
+  border-bottom: 1px dashed var(--border);
+}
+
+.action:last-child {
+  border-bottom: none;
+}
+
+/* --- Notices ------------------------------------------------------------- */
+
+.notice {
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  margin: 0 0 1rem;
+}
+
+.notice--error {
+  border-color: var(--danger);
+  color: var(--text);
+}
+
+/* The conflict notice is the one message that must not be missed. It is loud on
+   purpose, it takes focus when it appears, and it carries the control that
+   resolves it. */
+.notice--conflict {
+  background: var(--attention-bg);
+  color: var(--attention-text);
+  border-color: var(--attention-border);
+  border-left-width: 5px;
+}
+
+.notice--conflict h3 {
+  margin-top: 0;
+}
+
+/* Motion is a preference, and the panel is the only thing here that moves. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .panel {
+    animation: none;
+  }
+
+  .skeleton {
+    /* Without the sweep the placeholder still has to read as "not content". */
+    background: var(--surface);
+    border: 1px dashed var(--border);
+  }
+}
