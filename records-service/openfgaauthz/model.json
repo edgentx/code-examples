@@ -1,0 +1,179 @@
+{
+  "schema_version": "1.1",
+  "type_definitions": [
+    {
+      "type": "user"
+    },
+    {
+      "type": "service"
+    },
+    {
+      "metadata": {
+        "relations": {
+          "can_submit": {},
+          "clerk": {
+            "directly_related_user_types": [
+              {
+                "type": "user"
+              }
+            ]
+          },
+          "fulfillment": {
+            "directly_related_user_types": [
+              {
+                "type": "service"
+              }
+            ]
+          },
+          "member": {},
+          "reviewer": {
+            "directly_related_user_types": [
+              {
+                "type": "user"
+              }
+            ]
+          }
+        }
+      },
+      "relations": {
+        "can_submit": {
+          "computedUserset": {
+            "relation": "member"
+          }
+        },
+        "clerk": {
+          "this": {}
+        },
+        "fulfillment": {
+          "this": {}
+        },
+        "member": {
+          "union": {
+            "child": [
+              {
+                "computedUserset": {
+                  "relation": "clerk"
+                }
+              },
+              {
+                "computedUserset": {
+                  "relation": "reviewer"
+                }
+              }
+            ]
+          }
+        },
+        "reviewer": {
+          "this": {}
+        }
+      },
+      "type": "office"
+    },
+    {
+      "metadata": {
+        "relations": {
+          "can_acknowledge": {},
+          "can_assign_reviewer": {},
+          "can_deny": {},
+          "can_read": {},
+          "can_record_delivery": {},
+          "can_release": {},
+          "office": {
+            "directly_related_user_types": [
+              {
+                "type": "office"
+              }
+            ]
+          },
+          "requester": {
+            "directly_related_user_types": [
+              {
+                "type": "user"
+              }
+            ]
+          }
+        }
+      },
+      "relations": {
+        "can_acknowledge": {
+          "tupleToUserset": {
+            "computedUserset": {
+              "relation": "member"
+            },
+            "tupleset": {
+              "relation": "office"
+            }
+          }
+        },
+        "can_assign_reviewer": {
+          "tupleToUserset": {
+            "computedUserset": {
+              "relation": "reviewer"
+            },
+            "tupleset": {
+              "relation": "office"
+            }
+          }
+        },
+        "can_deny": {
+          "tupleToUserset": {
+            "computedUserset": {
+              "relation": "reviewer"
+            },
+            "tupleset": {
+              "relation": "office"
+            }
+          }
+        },
+        "can_read": {
+          "union": {
+            "child": [
+              {
+                "computedUserset": {
+                  "relation": "requester"
+                }
+              },
+              {
+                "tupleToUserset": {
+                  "computedUserset": {
+                    "relation": "member"
+                  },
+                  "tupleset": {
+                    "relation": "office"
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "can_record_delivery": {
+          "tupleToUserset": {
+            "computedUserset": {
+              "relation": "fulfillment"
+            },
+            "tupleset": {
+              "relation": "office"
+            }
+          }
+        },
+        "can_release": {
+          "tupleToUserset": {
+            "computedUserset": {
+              "relation": "reviewer"
+            },
+            "tupleset": {
+              "relation": "office"
+            }
+          }
+        },
+        "office": {
+          "this": {}
+        },
+        "requester": {
+          "this": {}
+        }
+      },
+      "type": "records_request"
+    }
+  ]
+}

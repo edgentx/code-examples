@@ -1,0 +1,68 @@
+model
+  schema 1.1
+
+# The authorization model for the records service. Everything below is a
+# relationship, not a role: access is decided by asking the graph whether a path
+# exists from a principal to an object with a named relation, so "who was able to
+# release these records" is always derivable and always explainable.
+#
+# The method -- unions, inheritance, userset rewrites, deny by relationship -- is
+# the subject of ../../rebac-authorization. This model applies it to one domain
+# and stays small enough that the whole access policy of the service fits on one
+# screen.
+
+type user
+
+# A non-human caller. Giving services their own type is what makes the delivery
+# check below expressible: "the fulfillment service for this office" is a
+# sentence about a relationship, whereas "a service account with the delivery
+# role" is a sentence about a credential.
+type service
+
+type office
+  relations
+    # Intake staff. A clerk logs requests and sends the statutory receipt notice.
+    define clerk: [user]
+    # Records officers. A reviewer decides what is released and what is withheld.
+    define reviewer: [user]
+    # The service that assembles and delivers release packages for this office.
+    define fulfillment: [service]
+
+    # One name for "works in this office", so the relations below say what they
+    # mean rather than repeating the union.
+    define member: clerk or reviewer
+
+    # Filing a request into an office is staff work in this example; a public
+    # portal would relate its own principal here rather than widen the relation.
+    define can_submit: member
+
+type records_request
+  relations
+    # The office the request was filed with. Every staff permission below is
+    # reached through this relation, so moving a request between offices moves
+    # its whole access list with it and no tuple against the request changes.
+    define office: [office]
+    # The person who filed it.
+    define requester: [user]
+
+    # A requester may read their own request. Anyone who works in the office may
+    # read any of its requests. Nobody else may read anything: there is no
+    # fallback branch, so a request whose office relation was never written is
+    # reachable by nobody.
+    define can_read: requester or member from office
+
+    # Sending the receipt notice is clerical work.
+    define can_acknowledge: member from office
+
+    # Deciding an answer is not. Assigning an officer, releasing records, and
+    # denying a request all require the reviewer relation, which is the single
+    # place that rule is stated.
+    define can_assign_reviewer: reviewer from office
+    define can_release: reviewer from office
+    define can_deny: reviewer from office
+
+    # The compensation path's actor check. Whether a release package arrived is
+    # a report, not a decision: only the fulfillment service registered to the
+    # office may record it. A reviewer cannot mark their own release delivered,
+    # and cannot mark it failed either.
+    define can_record_delivery: fulfillment from office
