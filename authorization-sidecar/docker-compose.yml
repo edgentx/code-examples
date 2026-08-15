@@ -2,9 +2,13 @@
 # point, and the application. Compose gives every service a DNS name on that
 # network, which is what envoy.yaml dials -- "opa" and "upstream".
 #
+#   ./generate-dev-certs.sh
 #   docker compose up -d --build
 #   curl -i http://localhost:18000/health
 #   docker compose down -v
+#
+# Generate the certificates first. The proxy and the application authenticate
+# each other, so neither starts usefully without them.
 #
 # Host ports are in the 18000 range so this stack can run beside the other
 # examples in this repository without a collision.
@@ -12,11 +16,24 @@
 name: authorization-sidecar
 
 services:
-  # The application. Published to the host ONLY so the README can show what it
-  # answers when nothing is guarding it -- which is everything, to anybody. In a
-  # real deployment nothing outside the pod can reach this port.
+  # The application. Published to the host ONLY so the README can show what
+  # happens when somebody tries to skip the proxy: the connection is refused
+  # during the TLS handshake, because the application accepts a client
+  # certificate issued to the sidecar and nothing else. Before mutual TLS this
+  # port answered everything, to anybody.
   upstream:
     build: .
+    environment:
+      TLS_CERT_FILE: /certs/upstream.crt
+      TLS_KEY_FILE: /certs/upstream.key
+      # One authority, supplied by the deployment. The binary has no
+      # certificate, key or authority compiled into it.
+      TLS_CLIENT_CA_FILE: /certs/ca.crt
+      # And one caller. "Signed by our authority" is not an identity: in a
+      # cluster that population is every workload in the mesh.
+      TLS_CLIENT_NAME: authorization-sidecar.svc.example
+    volumes:
+      - ./certs:/certs:ro
     ports:
       - "18080:8080"
 
@@ -43,9 +60,14 @@ services:
   # The enforcement point. Every request the outside world makes arrives here.
   envoy:
     image: envoyproxy/envoy:v1.34-latest
-    command: ["-c", "/etc/envoy/envoy.yaml", "--log-level", "info"]
+    # Envoy resolves the file names in its configuration against its working
+    # directory, so the configuration and the certificates are mounted together
+    # and read-only: the proxy needs both and has no reason to change either.
+    working_dir: /workspace
+    command: ["-c", "envoy.yaml", "--log-level", "info"]
     volumes:
-      - ./envoy.yaml:/etc/envoy/envoy.yaml:ro
+      - ./envoy.yaml:/workspace/envoy.yaml:ro
+      - ./certs:/workspace/certs:ro
     ports:
       - "18000:8000"
     # depends_on orders startup, it does not wait for readiness -- and it must

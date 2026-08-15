@@ -3,10 +3,12 @@
 # smoke.sh -- bring the stack up, prove the authorization boundary, tear it down.
 #
 # Every assertion here is a claim this example makes in its README, checked
-# against a running proxy rather than against a mock. The last group is the one
-# worth reading: it stops the policy engine and shows that reads stop with it.
-# A sidecar that keeps serving when its decision point is gone is not an
-# authorization control, and this is the only way to find that out.
+# against a running proxy rather than against a mock. Two groups are worth
+# reading. One stops the policy engine and shows that reads stop with it: a
+# sidecar that keeps serving when its decision point is gone is not an
+# authorization control. The other dials the application directly and shows the
+# connection refused during the TLS handshake: a decision point that can be
+# walked around is not one either.
 #
 # Usage:  ./smoke.sh
 # Exit:   0 if every assertion held, 1 otherwise.
@@ -16,7 +18,11 @@ set -uo pipefail
 cd "$(dirname "$0")" || exit 1
 
 GATEWAY="http://localhost:18000"
-UPSTREAM="http://localhost:18080"
+# The application, reached directly. It is addressed by the name on its
+# certificate rather than by "localhost", because the point of the exercise is
+# that both ends verify who they are talking to.
+UPSTREAM="https://upstream:18080"
+UPSTREAM_RESOLVE=(--resolve "upstream:18080:127.0.0.1" --cacert certs/ca.crt)
 
 READER="Authorization: Bearer t-rosalind-reader"
 OWNER="Authorization: Bearer t-omar-owner"
@@ -63,6 +69,24 @@ expect_body() {
   esac
 }
 
+# expect_refused <description> <curl arguments...>
+#
+# Asserts that the connection never became a request. There is no status code to
+# check: the handshake fails, curl exits non-zero, and nothing reaches the
+# application.
+expect_refused() {
+  local description="$1"
+  shift
+  local body status
+  body="$(curl -s -o /dev/null -w '%{http_code}' "$@" 2>/dev/null)"
+  status=$?
+  if [ "${status}" -ne 0 ] && [ "${body}" = "000" ]; then
+    pass "${description} (refused at the handshake, curl exit ${status})"
+  else
+    fail "${description}: expected a refused connection, got HTTP ${body} (curl exit ${status})"
+  fi
+}
+
 # wait_for_status <url> <expected status> [curl arguments...]
 wait_for_status() {
   local url="$1" want="$2"
@@ -90,6 +114,12 @@ if ! docker compose version >/dev/null 2>&1; then
 fi
 
 trap teardown EXIT
+
+echo '== generating the TLS material the two ends authenticate with'
+if ! ./generate-dev-certs.sh >/dev/null; then
+  echo 'could not generate development certificates' >&2
+  exit 1
+fi
 
 echo '== bringing the stack up'
 if ! docker compose up -d --build >/dev/null; then
@@ -142,8 +172,24 @@ expect_body 'the forged header survives only as an echoed, unused field' '"clien
   -H "${READER}" -H "${FORGED_USER}" "${GATEWAY}/api/documents"
 
 echo
-echo '== the application itself has no opinion, which is why the boundary matters'
-expect 'reached directly, the application serves an unauthenticated read' 200 "${UPSTREAM}/api/documents"
+echo '== the sidecar cannot be bypassed'
+# The three calls the README describes, in order. The application still has no
+# authorization code in it; what changed is that nothing can reach it to take
+# advantage of that.
+expect 'through the sidecar, with a verified identity' 200 -H "${READER}" "${GATEWAY}/api/documents"
+expect 'through the sidecar, with no identity' 403 "${GATEWAY}/api/documents"
+expect_refused 'directly to the application, presenting no client certificate' \
+  "${UPSTREAM_RESOLVE[@]}" "${UPSTREAM}/api/documents"
+# The control sample. It proves the refusals above are the client-certificate
+# check biting rather than a listener that is simply broken -- and it is exactly
+# what the private key buys, which is why in a deployment that key exists only
+# inside the proxy's own container.
+expect 'directly to the application, holding the certificate issued to the proxy' 200 \
+  "${UPSTREAM_RESOLVE[@]}" --cert certs/sidecar.crt --key certs/sidecar.key \
+  "${UPSTREAM}/api/documents"
+expect_body 'and even then, no identity is stamped on it' '"subject":"anonymous"' \
+  "${UPSTREAM_RESOLVE[@]}" --cert certs/sidecar.crt --key certs/sidecar.key \
+  "${UPSTREAM}/api/documents"
 
 echo
 echo '== FAIL CLOSED: stop the policy engine and the door must shut'

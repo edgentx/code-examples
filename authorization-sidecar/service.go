@@ -23,9 +23,12 @@
 //     it never reads the Authorization header. Credentials are the sidecar's
 //     problem. This service could not forge or misinterpret a claim if it
 //     wanted to, because it never looks at the source of one.
-//   - It assumes the deployment guarantees no path to this port that bypasses
-//     the sidecar. In the compose stack that is a shared container network; in
-//     a cluster it is a pod-local listener plus mutual TLS between proxies.
+//   - It requires the deployment to guarantee there is no path to this port
+//     that bypasses the sidecar, and it enforces its half of that guarantee
+//     rather than assuming it: see mtls.go. The listener completes a handshake
+//     only with a client presenting a certificate signed by the deployment's
+//     authority and issued to the sidecar, so "the proxy is the only caller" is
+//     a property of the connection rather than a note in a runbook.
 //
 // The payoff for an agency is that an authorization change ships as a policy
 // change, reviewable on its own, without recompiling or redeploying any of the

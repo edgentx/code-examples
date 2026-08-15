@@ -15,9 +15,17 @@ redeploying the application it governs.
 ## What it demonstrates
 
 - **The application holds no authorization code.** `service.go` opens with the reason in block
-  capitals. `service_test.go` includes the uncomfortable proof — reached directly, the service
-  answers a request carrying no identity whatsoever. That is not a bug to fix in the service; it
-  is why the deployment must guarantee no path to that port except through the sidecar.
+  capitals. `service_test.go` includes the uncomfortable proof — handed a request carrying no
+  identity whatsoever, the service answers it. That is not a bug to fix in the service; it is why
+  the deployment has to guarantee there is no path to that port except through the sidecar.
+- **And that guarantee is wiring, not a convention.** The proxy and the application authenticate
+  each other with mutual TLS against a single authority, and each checks the name on the other's
+  certificate. Sharing a network is not a control: anything else on the network could dial the
+  application and skip every decision above it. With mutual TLS the set of callers that can
+  complete a handshake with the application has one member, and `smoke.sh` proves it by dialing
+  the application directly and being refused before a request exists. Verifying the *name* and not
+  only the signature is the part that is easy to leave out: "signed by our authority" in a cluster
+  means every workload in the mesh.
 - **Closed-set policy construction.** `policy/authz.rego` starts at `default allow := false`,
   enumerates the two requests that may proceed unauthenticated (health and readiness, matched on
   method and exact path), then enumerates the authenticated rules with the role each requires.
@@ -46,7 +54,10 @@ redeploying the application it governs.
 | --- | --- |
 | `service.go` | The upstream HTTP service, and the block comment explaining why it holds no authorization code. |
 | `documents.go` | The synthetic document store behind those endpoints. |
-| `main.go` | Binds the listener. |
+| `main.go` | Binds the listener, over mutual TLS when the deployment supplies the material. |
+| `mtls.go` | The client-certificate rule: signed by our authority, *and* issued to the sidecar. |
+| `mtls_test.go` | The rule as a table, plus a real handshake: the sidecar gets in, no certificate does not, and a certificate the same authority issued to another workload does not either. |
+| `generate-dev-certs.sh` | Makes the throwaway authority and the two leaf certificates. Nothing under `certs/` is ever committed. |
 | `service_test.go` | Table-driven handler tests, plus the two tests that prove the service derives nothing from identity. |
 | `envoy.yaml` | Listener, the `ext_authz` filter, `failure_mode_allow: false`, and the two clusters. |
 | `policy/authz.rego` | The closed-set policy: default deny, the open set, the authenticated rules, and the decision Envoy receives. |
@@ -69,9 +80,11 @@ chmod +x /tmp/opa
 /tmp/opa test --verbose policy/
 ```
 
-Validate the proxy configuration without running it:
+Validate the proxy configuration without running it. Validation opens every file the
+configuration references, including the TLS material, so generate that first:
 
 ```bash
+./generate-dev-certs.sh
 docker run --rm -v "$PWD:/workspace" -w /workspace \
   envoyproxy/envoy:v1.34-latest --mode validate -c envoy.yaml
 ```
@@ -83,11 +96,35 @@ Run the whole demonstration:
 ```
 
 Or drive it by hand. The stack listens on `18000` (proxy), `18181` (policy engine REST API), and
-`18080` (the service, published only so you can see what it does unguarded).
+`18080` (the application, published only so you can watch an attempt to skip the proxy fail).
 
 ```bash
+./generate-dev-certs.sh
 docker compose up -d --build
 ```
+
+**Three calls, which are the whole claim.** Through the sidecar with a verified identity, the
+request is served. Through the sidecar without one, it is refused by the policy. Straight at the
+application, it is refused before it is a request at all:
+
+```console
+$ curl -s -o /dev/null -w '%{http_code}\n' \
+    -H 'Authorization: Bearer t-rosalind-reader' http://localhost:18000/api/documents
+200
+
+$ curl -s -o /dev/null -w '%{http_code}\n' http://localhost:18000/api/documents
+403
+
+$ curl -s --resolve upstream:18080:127.0.0.1 --cacert certs/ca.crt \
+    https://upstream:18080/api/documents
+curl: (56) OpenSSL SSL_read: error:0A00045C:SSL routines::tlsv13 alert certificate required
+```
+
+There is no status code in the third case because there is no response. The application asked for
+a client certificate, the caller had none, and the connection ended in the handshake. Present the
+certificate issued to the proxy and the same call succeeds — which is the control sample proving
+the refusal is the certificate check biting, and is exactly what that private key buys. In a
+deployment it exists only inside the proxy's own container.
 
 **No identity — refused before the application is ever reached:**
 
@@ -187,13 +224,23 @@ claims. What does not change is the shape of the rule — `subject` is undefined
 was verified, and every authenticated rule depends on `subject`.
 
 The demonstration stands up the policy engine as a container beside the proxy. In a cluster the
-same three processes are containers in one pod, the proxy-to-policy call is loopback, and
-proxy-to-proxy traffic between pods carries mutual TLS. The word "sidecar" is accurate in both
-shapes: the decision point is deployed with the workload, not called across the network as a
-shared service that becomes a single point of failure for every application at once.
+same three processes are containers in one pod and the proxy-to-policy call is loopback. The word
+"sidecar" is accurate in both shapes: the decision point is deployed with the workload, not called
+across the network as a shared service that becomes a single point of failure for every
+application at once.
 
-Two siblings complete the picture:
+The TLS material here is generated, short-lived, and thrown away. In a cluster the same
+certificates come from the mesh's own authority and are rotated automatically, and the name the
+application checks is the proxy's workload identity rather than a name from a script. What does
+not change is the rule: verify the signature *and* the name, because an authority that signs for
+every workload has told you only that the caller exists.
 
+Three siblings complete the picture:
+
+- [`../records-service`](../records-service) is an application written against exactly this
+  boundary. It declares the identity header it needs, implements no login, and holds no
+  credential — because in a deployment the decision point is enforced beside it and it is
+  unreachable except through it. This example is the wiring that makes that true.
 - [`../envoy-gateway`](../envoy-gateway) is the other half of the forged-header story. This
   example proves the *policy* never reads a client-supplied identity header; the gateway strips
   those headers at the edge so they never enter the mesh at all. Belt and suspenders, deliberately
