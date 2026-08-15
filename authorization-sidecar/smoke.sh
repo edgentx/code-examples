@@ -187,7 +187,11 @@ expect_refused 'directly to the application, presenting no client certificate' \
 expect 'directly to the application, holding the certificate issued to the proxy' 200 \
   "${UPSTREAM_RESOLVE[@]}" --cert certs/sidecar.crt --key certs/sidecar.key \
   "${UPSTREAM}/api/documents"
-expect_body 'and even then, no identity is stamped on it' '"subject":"anonymous"' \
+# And even then the request carries no identity: "anonymous" is a value the
+# policy stamps through the proxy, so a call that skipped the proxy has no
+# subject at all. Holding the key gets a caller to the application; it does not
+# get them an identity, because identity is the decision point's contribution.
+expect_body 'and even then, the request carries no identity' '"subject":""' \
   "${UPSTREAM_RESOLVE[@]}" --cert certs/sidecar.crt --key certs/sidecar.key \
   "${UPSTREAM}/api/documents"
 

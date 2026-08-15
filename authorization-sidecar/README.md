@@ -122,9 +122,14 @@ curl: (56) OpenSSL SSL_read: error:0A00045C:SSL routines::tlsv13 alert certifica
 
 There is no status code in the third case because there is no response. The application asked for
 a client certificate, the caller had none, and the connection ended in the handshake. Present the
-certificate issued to the proxy and the same call succeeds — which is the control sample proving
-the refusal is the certificate check biting, and is exactly what that private key buys. In a
-deployment it exists only inside the proxy's own container.
+certificate issued to the proxy and the same call succeeds — the control sample proving the
+refusal is the certificate check biting, and exactly what that private key buys. In a deployment
+it exists only inside the proxy's own container.
+
+Even then the request arrives with no identity on it: `"subject":""`, not `"anonymous"`. The
+anonymous subject is a value the policy stamps on its way through, so a call that skipped the
+policy has no subject at all. Holding the key gets a caller to the application; it does not get
+them a claim.
 
 **No identity — refused before the application is ever reached:**
 
