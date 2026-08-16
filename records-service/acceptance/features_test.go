@@ -79,8 +79,13 @@ type scenario struct {
 	// at once send them from several goroutines.
 	clockMu sync.Mutex
 	clock   time.Time
-	ids     []string
-	keys    int
+
+	// idsMu guards the identifier queue and the key counter for the same
+	// reason. nextID is handed to the service as its ID source, so it runs
+	// inside Submit, which those same criteria call from several goroutines.
+	idsMu sync.Mutex
+	ids   []string
+	keys  int
 
 	// What the last command produced. Then steps assert on these.
 	view requests.View
@@ -282,6 +287,9 @@ func (s *scenario) reset() {
 // nextID hands out the identifiers the feature files name, so a scenario can
 // talk about "PRR-2026-0041" and mean the request it just filed.
 func (s *scenario) nextID() string {
+	s.idsMu.Lock()
+	defer s.idsMu.Unlock()
+
 	if len(s.ids) == 0 {
 		return fmt.Sprintf("PRR-2026-%04d", 9000+s.keys)
 	}
@@ -292,6 +300,9 @@ func (s *scenario) nextID() string {
 
 // key mints a fresh idempotency key.
 func (s *scenario) key() string {
+	s.idsMu.Lock()
+	defer s.idsMu.Unlock()
+
 	s.keys++
 	return fmt.Sprintf("key-%02d", s.keys)
 }
