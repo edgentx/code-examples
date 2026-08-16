@@ -4,9 +4,13 @@
   is what keeps them that way when someone reaches for a lighter gray.
 */
 :root {
+  --page: #ffffff;
   --ink: #1a1a1a; /* 16.9:1 on white */
   --ink-muted: #4a4a4a; /* 8.9:1 on white */
   --navy: #1b4965; /* 9.6:1 against white text */
+  --navy-hover: #123449; /* 12.6:1 against white text */
+  --on-accent: #ffffff;
+  --accent-edge: #1b4965; /* the button boundary, 3:1 or better against the page */
   --link: #14425f;
   --error: #b3261e; /* 6.5:1 on white, 5.7:1 on the error panel */
   --error-surface: #fdecea;
@@ -16,13 +20,59 @@
   --focus-on-dark: #ffcc33;
 }
 
+/*
+  A second palette is a second set of color pairs, and a ratio that holds on white says nothing
+  about the one that replaces it. The gate scans the page again with the dark preference set
+  (tests/accessibility.spec.ts, "the page scans clean under a dark color scheme"), so these values
+  are measured rather than eyeballed.
+
+  color-scheme tells the browser to paint the parts it owns - the checkbox and radio glyphs, the
+  scrollbars, the caret - for a dark surface. Without it those are drawn for a light page and land
+  invisible on this one, and no CSS of ours would say so.
+*/
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --page: #10161c;
+    --ink: #eef2f5; /* 16.2:1 on the dark page */
+    --ink-muted: #b9c4cd; /* 10.3:1 */
+    --navy: #16334a; /* 13.1:1 against white text */
+    --navy-hover: #1e4363; /* 10.3:1 against white text */
+    --on-accent: #ffffff;
+    --accent-edge: #9dc7e4; /* 10.2:1 against the page, so the button still has an edge */
+    --link: #8fc7ee; /* 10.0:1 */
+    --error: #ff9b93; /* 9.0:1 on the page, 7.7:1 on the error panel */
+    --error-surface: #3a1a17;
+    --surface: #1c262f;
+    --border: #8b98a3; /* 6.2:1, above the 3:1 a control boundary needs */
+    --focus: #ffbf47; /* 11.1:1 */
+    --focus-on-dark: #ffcc33;
+  }
+}
+
+/*
+  Motion is declared only where the reader has not asked for less of it, which is the whole of the
+  reduced-motion story: there is no animation to switch off, because none was ever turned on. The
+  gate re-runs the scan with the preference set (tests/accessibility.spec.ts, "the page scans clean
+  when the reader prefers reduced motion"), so this branch is covered rather than assumed.
+*/
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  .button {
+    transition: background-color 150ms ease-in-out;
+  }
+}
+
 * {
   box-sizing: border-box;
 }
 
 body {
   margin: 0;
-  background: #ffffff;
+  background: var(--page);
   color: var(--ink);
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   font-size: 1rem;
@@ -49,7 +99,7 @@ body {
   left: -9999px;
   top: 0;
   background: var(--navy);
-  color: #ffffff;
+  color: var(--on-accent);
   padding: 0.75rem 1rem;
   z-index: 10;
 }
@@ -72,7 +122,7 @@ body {
 
 .site-header {
   background: var(--navy);
-  color: #ffffff;
+  color: var(--on-accent);
   padding: 1rem 1.5rem;
 }
 
@@ -93,7 +143,7 @@ body {
 }
 
 .site-header a {
-  color: #ffffff;
+  color: var(--on-accent);
 }
 
 main {
@@ -198,7 +248,7 @@ textarea {
   padding: 0.5rem;
   font: inherit;
   color: var(--ink);
-  background: #ffffff;
+  background: var(--page);
   border: 2px solid var(--border);
 }
 
@@ -215,14 +265,24 @@ textarea {
   padding: 0.75rem 1.5rem;
   font: inherit;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--on-accent);
   background: var(--navy);
-  border: 2px solid var(--navy);
+  border: 2px solid var(--accent-edge);
   cursor: pointer;
 }
 
 .button:hover {
-  background: #123449;
+  background: var(--navy-hover);
+}
+
+/*
+  The table is the one thing on this page that cannot be poured into 320 CSS pixels: rows and
+  columns are the meaning, so WCAG 1.4.10 lets it scroll sideways. Confining that to this wrapper
+  is what keeps the *document* one-dimensional, which is what the reflow test measures. The
+  wrapper is a tab stop (see index.html) so the scrolling is not mouse-only.
+*/
+.table-scroll {
+  overflow-x: auto;
 }
 
 table {

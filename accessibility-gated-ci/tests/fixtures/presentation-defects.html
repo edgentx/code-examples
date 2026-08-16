@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Copy of the request form with defects no scanner reports</title>
+    <style>
+      body {
+        margin: 0;
+        background: #ffffff;
+        color: #1a1a1a;
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        line-height: 1.55;
+      }
+      main {
+        max-width: 44rem;
+        margin: 0 auto;
+        padding: 1.5rem;
+      }
+      label {
+        font-weight: 700;
+      }
+      input,
+      textarea {
+        font: inherit;
+        padding: 0.5rem;
+        color: #1a1a1a;
+        background: #ffffff;
+        border: 2px solid #6b7780;
+      }
+      :focus-visible {
+        outline: 3px solid #b35c00;
+        outline-offset: 2px;
+      }
+
+      /*
+        DEFECT 1 of 3: the outline is removed and nothing replaces it. The control is still
+        reachable, still labeled, and still announced correctly, so every rule in the axe catalog
+        passes it. A sighted keyboard user simply loses track of where they are.
+      */
+      #case-number:focus,
+      #case-number:focus-visible {
+        outline: none;
+      }
+
+      /*
+        DEFECT 2 of 3: a fixed width in pixels. At 320 CSS pixels the page has to be scrolled
+        sideways to read this one paragraph, which drags every other line out of view with it.
+      */
+      .notice-banner {
+        width: 900px;
+        background: #eef2f5;
+        padding: 0.75rem 1rem;
+      }
+
+      /*
+        DEFECT 3 of 3: a row that refuses to wrap, holding a control sized in rem. At the default
+        root size it fits comfortably. Double the root size and the label doubles with it, the row
+        cannot break, the control cannot shrink, and it is carried off the right-hand edge of the
+        viewport.
+      */
+      .nowrap-row {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        white-space: nowrap;
+      }
+      .nowrap-row input {
+        flex: 0 0 24rem;
+      }
+    </style>
+  </head>
+  <body>
+    <!--
+      The control sample for the checks a scanner cannot make. This is the same request form as
+      public/index.html with three defects planted in it, and the point of the file is that axe
+      reports nothing at all on it: tests/accessibility.spec.ts asserts the clean scan first, then
+      asserts that each written check reports its defect. A gate is only worth the merges it
+      blocks, so every check in the file is proven to block one.
+
+      Planted defects, in document order:
+        1. focus indicator - the case number field removes its outline and replaces it with nothing
+        2. reflow          - a 900px banner forces sideways scrolling at 320 CSS pixels
+        3. text resize     - a no-wrap row carries its control off screen at a 200% root font size
+    -->
+    <main>
+      <h1>Request a copy of a public record</h1>
+
+      <form>
+        <p>
+          <label for="full-name">Full name</label><br />
+          <input type="text" id="full-name" name="full-name" autocomplete="name" />
+        </p>
+
+        <p>
+          <label for="case-number">Existing case number</label><br />
+          <input type="text" id="case-number" name="case-number" />
+        </p>
+
+        <p>
+          <label for="records">Describe the records</label><br />
+          <textarea id="records" name="records" rows="3"></textarea>
+        </p>
+
+        <div class="nowrap-row">
+          <label for="fee-reference">Fee waiver reference issued by the records office</label>
+          <input type="text" id="fee-reference" name="fee-reference" />
+        </div>
+
+        <p><button type="submit">Submit request</button></p>
+      </form>
+
+      <p class="notice-banner">
+        Requests received after 4pm are logged on the following working day.
+      </p>
+    </main>
+  </body>
+</html>

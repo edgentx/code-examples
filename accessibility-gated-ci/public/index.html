@@ -181,36 +181,56 @@
       </form>
 
       <h2 id="deadlines">Statutory response times</h2>
-      <table>
-        <caption>
-          Working days allowed for each stage, counted from the day the request is received.
-        </caption>
-        <thead>
-          <tr>
-            <!-- scope on every header cell: the association is stated, not inferred. -->
-            <th scope="col">Stage</th>
-            <th scope="col">Working days</th>
-            <th scope="col">Notice sent</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <th scope="row">Receipt acknowledged</th>
-            <td>3</td>
-            <td>Yes</td>
-          </tr>
-          <tr>
-            <th scope="row">Records released or denied</th>
-            <td>10</td>
-            <td>Yes</td>
-          </tr>
-          <tr>
-            <th scope="row">Extension for a voluminous request</th>
-            <td>10 additional</td>
-            <td>Yes</td>
-          </tr>
-        </tbody>
-      </table>
+      <!--
+        A three-column data table cannot be poured into 320 CSS pixels without destroying the
+        row and column relationships that are its meaning, and WCAG 1.4.10 exempts content that
+        needs two dimensions for exactly that reason. The exemption is for the table, not for the
+        page: confining the sideways scrolling to this wrapper is what keeps the document itself
+        one-dimensional, which is what the reflow test measures.
+
+        A scrollable box is operable with a mouse wheel and a trackpad and, without help, by
+        nothing else. tabindex="0" puts it in the tab order so that the keyboard can scroll it too,
+        and role="region" with a name says what the reader has landed on. Both are asserted: the
+        stop appears in EXPECTED_TAB_ORDER, and it has to show a focus outline like every other.
+      -->
+      <div
+        id="response-times"
+        class="table-scroll"
+        role="region"
+        aria-label="Statutory response times"
+        tabindex="0"
+      >
+        <table>
+          <caption>
+            Working days allowed for each stage, counted from the day the request is received.
+          </caption>
+          <thead>
+            <tr>
+              <!-- scope on every header cell: the association is stated, not inferred. -->
+              <th scope="col">Stage</th>
+              <th scope="col">Working days</th>
+              <th scope="col">Notice sent</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th scope="row">Receipt acknowledged</th>
+              <td>3</td>
+              <td>Yes</td>
+            </tr>
+            <tr>
+              <th scope="row">Records released or denied</th>
+              <td>10</td>
+              <td>Yes</td>
+            </tr>
+            <tr>
+              <th scope="row">Extension for a voluminous request</th>
+              <td>10 additional</td>
+              <td>Yes</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
 
       <h2 id="help">Get help with this form</h2>
       <p>
